@@ -52,6 +52,16 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 #hud .bar i{display:block;height:100%;width:0;background:#35d07f;transition:width .4s}
 #hud .bar.t i{background:#20c5b5}
 #hud select{background:#0c0f20;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:3px;font-size:12px;max-width:100%}
+.token-tree-header{font-size:12px;font-weight:600;color:var(--tx);margin:8px 10px 4px}
+.token-tree{margin:4px 10px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;line-height:1.45;background:#090c1b;border:1px solid var(--bd);border-radius:8px;padding:8px 10px;max-height:260px;overflow-y:auto}
+.token-node{margin-bottom:8px;padding-bottom:6px;border-bottom:1px dashed rgba(255,255,255,0.08)}
+.token-node:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.token-name{font-weight:700;color:#7dd3fc}
+.token-branch{color:#94a3b8;white-space:pre}
+.token-val{color:#f1f5f9}
+.token-val.avail{color:#4ade80;font-weight:600}
+.token-val.cooldown{color:#facc15}
+.token-val.no_key{color:#94a3b8}
 #log{position:absolute;top:10px;right:10px;width:min(300px,46vw);max-height:38%;overflow:auto;background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:8px;font-size:12px;line-height:1.4}
 #log div{margin-bottom:5px}#log i{color:var(--mu);font-style:normal;margin-right:4px}
 .lb{position:absolute;transform:translate(-50%,-100%);text-align:center;font-size:12px;white-space:nowrap;pointer-events:none}
@@ -99,9 +109,10 @@ button.g{background:transparent;border:1px solid var(--bd);color:var(--tx)}
   <div id="hud" class="pn">
     <div class="ph" data-expand="hud"><span>📊 Tiến độ &amp; Token <span class="mini" id="hm"></span></span><button data-min="hud">–</button></div>
     <div id="h1">Tiến độ: chưa có việc</div><div class="bar"><i id="pb"></i></div>
-    <div id="h2">Token hôm nay: 0</div><div class="bar t"><i id="tb"></i></div>
-    <div id="h3" style="color:var(--mu)">Tiết kiệm: 0</div>
-    <div style="margin-top:6px">Hạn mức/ngày: <select id="qs"><option value="4000">4,000 (demo hết token)</option><option value="8000" selected>8,000</option><option value="20000">20,000</option></select></div>
+    <div id="h2" style="font-weight:600;margin:6px 10px 2px">Tổng token đã dùng: 0</div><div class="bar t"><i id="tb"></i></div>
+    <div id="h3" style="color:var(--mu);margin:2px 10px 6px">Hạn mức: Theo từng API bên dưới</div>
+    <div class="token-tree-header">Hệ thống Token / Quota thật theo từng AI:</div>
+    <div id="tokenTree" class="token-tree"></div>
   </div>
   <div id="mail" class="pn">
     <div class="ph" data-expand="mail"><span>✉️ Thông báo email <span class="mini" id="mm"></span></span><button data-min="mail">–</button></div>
@@ -210,11 +221,9 @@ let mem={};
 const today=()=>new Date().toISOString().slice(0,10);
 function load(){try{return JSON.parse(localStorage.getItem('aio_office')||'null')||mem}catch(e){return mem}}
 function save(){mem=S;try{localStorage.setItem('aio_office',JSON.stringify(S))}catch(e){}}
-let S=Object.assign({jobs:[],day:today(),used:0,quota:8000,email:'',min:{hud:0,mail:0},prov:0,tok:'',router:[{id:'claude',mode:'auto'},{id:'openai',mode:'ask'},{id:'gemini',mode:'ask'},{id:'openrouter',mode:'ask'},{id:'groq',mode:'ask'},{id:'router9',mode:'ask'}]},load());
+let S=Object.assign({jobs:[],day:today(),used:0,email:'',min:{hud:0,mail:0},prov:0,tok:'',router:[{id:'claude',mode:'auto'},{id:'openai',mode:'ask'},{id:'gemini',mode:'ask'},{id:'openrouter',mode:'ask'},{id:'groq',mode:'ask'},{id:'router9',mode:'ask'}],providersData:{}},load());
 if(S.day!==today()){S.day=today();S.used=0;S.prov=0}
 S.jobs.forEach(j=>{if(j.status==='running')j.status='paused'});save();
-$('qs').value=String(S.quota);
-$('qs').onchange=()=>{S.quota=+$('qs').value;save();hud()};
 const RP={claude:['Claude','Trả phí'],openai:['ChatGPT','Trả phí'],gemini:['Gemini','Có gói miễn phí'],openrouter:['OpenRouter','Có free + trả phí'],groq:['Groq','Có gói miễn phí'],router9:['9Router (local)','Proxy tự host']};
 let BE=false;
 async function api(p,o={}){const r=await fetch(p,Object.assign({},o,{headers:{'content-type':'application/json',authorization:'Bearer '+(S.tok||'')}}));if(r.status===401){const t=prompt('Nhập ADMIN_TOKEN của backend:');if(t){S.tok=t;save();return api(p,o)}throw new Error('401')}if(!r.ok)throw new Error((await r.text())||String(r.status));return r.json()}
@@ -282,7 +291,30 @@ async function nextProvider(job){
     return true}
   return false}
 const RMAP={'CEO':ceo,'PM':pm,'Tiến độ & Token':tm,'Dev FE':fe,'Dev BE':be,'QA/QC':qa,'Thư ký':sec};
-async function detectBE(){try{const h=await fetch('/api/health');if(!h.ok)return;const d=await api('/api/settings');BE=true;S.router=d.settings.providers.map(p=>({id:p.id,mode:p.mode}));S.pricing=d.settings.pricing||{};S.modelOverrides=d.settings.modelOverrides||{};if(d.settings.email)S.email=d.settings.email;else if(S.email)api('/api/settings',{method:'PUT',body:JSON.stringify({email:S.email})}).catch(()=>{});save();mailUi();routerUi();hud();$('go').textContent='Giao việc (backend)';log(sec,'Đã kết nối backend: công việc chạy nền, email tự gửi.')}catch(e){}}
+async function detectBE(){
+  try{
+    const h=await fetch('/api/health');if(!h.ok)return;
+    const d=await api('/api/settings');
+    BE=true;
+    S.router=d.settings.providers.map(p=>({id:p.id,mode:p.mode}));
+    S.pricing=d.settings.pricing||{};
+    S.modelOverrides=d.settings.modelOverrides||{};
+    if(d.providers)S.providersData=d.providers;
+    if(d.settings.email)S.email=d.settings.email;
+    else if(S.email)api('/api/settings',{method:'PUT',body:JSON.stringify({email:S.email})}).catch(()=>{});
+    save();mailUi();routerUi();hud();
+    $('go').textContent='Giao việc (backend)';
+    log(sec,'Đã kết nối backend: công việc chạy nền, email tự gửi.');
+    setInterval(syncTokens,8000);
+  }catch(e){}
+}
+async function syncTokens(){
+  if(!BE)return;
+  try{
+    const d=await api('/api/tokens');
+    if(d.providers){S.providersData=d.providers;hud();}
+  }catch(e){}
+}
 async function beJob(r){
   all.forEach(a=>a.chat=[]);msg(inv,'Bạn',r,true);$('inp').value='';
   const j=await api('/api/jobs',{method:'POST',body:JSON.stringify({req:r})});
@@ -291,7 +323,7 @@ async function poll(id,seen){
   try{
     const j=await api('/api/jobs/'+id);
     j.events.filter(e=>e.n>seen).forEach(e=>{seen=e.n;const a=RMAP[e.role];if(a)bg(a,e.text.slice(0,90),2600,e.text);else log(sec,e.text)});
-    N=j.total;cur={step:j.step,saved:0,status:j.status==='done'?'done':'running'};hud();
+    N=j.total;cur={step:j.step,tokens:j.tokens||0,saved:0,status:j.status==='done'?'done':'running'};hud();syncTokens();
     if(j.status==='waiting_approval'&&j.need&&!poll.ask){poll.ask=1;askApprove('🔀 Cần duyệt dùng <b>'+esc(RP[j.need][0])+'</b> để làm tiếp công việc này?').then(d=>api('/api/approve',{method:'POST',body:JSON.stringify({jobId:id,providerId:j.need,decision:d})})).catch(()=>{}).then(()=>{poll.ask=0})}
     if(j.status==='done'){msg(inv,'CEO','Sản phẩm đã sẵn sàng. Backend đã gửi email thông báo nếu bạn đã cấu hình.');showBeOut(j);return}
     if(j.status==='failed'){log(sec,'Công việc lỗi: '+(j.err||''));return}
@@ -379,14 +411,48 @@ const TIPS=[
 ];
 let cur=null,busy=false;
 function lock(b){busy=b;$('go').disabled=$('inp').disabled=b}
+function renderTokenTree(){
+  const el=$('tokenTree');if(!el)return;
+  const pList=(S.providersData&&Object.keys(S.providersData).length>0)?S.providersData:{
+    claude:{name:'Claude',used:0,quota:'Theo API',status:'available',statusLabel:'🟢 Available'},
+    openai:{name:'ChatGPT',used:0,quota:'Theo API',status:'available',statusLabel:'🟢 Available'},
+    gemini:{name:'Gemini',used:0,quota:'Theo API',status:'available',statusLabel:'🟢 Available'},
+    openrouter:{name:'OpenRouter (free)',used:0,quota:'Theo Model / Free Tier',status:'available',statusLabel:'🟢 Available'},
+    groq:{name:'Groq (free)',used:0,quota:'14,400 RPD (Free Tier)',status:'available',statusLabel:'🟢 Available'},
+    router9:{name:'9Router (local)',used:0,quota:'Không giới hạn (Local)',status:'available',statusLabel:'🟢 Available'}
+  };
+  let html='';
+  for(const[id,p]of Object.entries(pList)){
+    const used=Number(p.used||0).toLocaleString('en-US');
+    const quota=p.quota||'Theo API';
+    let statusText=p.statusLabel||(p.ready===false?'⚪ Chưa cài API Key':(p.cooldownMs>0?'🟡 Hết hạn mức / Cooldown':'🟢 Available'));
+    let cls='avail';
+    if(statusText.includes('🟡')||p.status==='cooldown')cls='cooldown';
+    else if(statusText.includes('⚪')||p.status==='no_key'||p.ready===false)cls='no_key';
+    html+=`<div class="token-node">
+<div class="token-name">${esc(p.name||id)}</div>
+<div class="token-branch">├─ Đã dùng: <span class="token-val">${used}</span></div>
+<div class="token-branch">├─ Hạn mức: <span class="token-val">${esc(quota)}</span></div>
+<div class="token-branch">└─ Trạng thái: <span class="token-val ${cls}">${esc(statusText)}</span></div>
+</div>`;
+  }
+  el.innerHTML=html;
+}
 function hud(){
   const j=cur;$('h1').textContent=j?('Tiến độ: '+j.step+'/'+N+' bước'+(j.status==='paused'?' (tạm dừng)':'')):'Tiến độ: chưa có việc';
   $('pb').style.width=(j?j.step/N*100:0)+'%';
-  $('h2').textContent='Token hôm nay ('+RP[S.router[S.prov].id][0]+'): '+S.used.toLocaleString('en-US')+' / '+S.quota.toLocaleString('en-US');
-  $('tb').style.width=Math.min(100,S.used/S.quota*100)+'%';
-  $('h3').textContent='Tiết kiệm công việc này: '+(j?j.saved:0).toLocaleString('en-US')+' token';
+  let totalUsed=0;
+  if(S.providersData&&Object.keys(S.providersData).length>0){
+    Object.values(S.providersData).forEach(p=>{totalUsed+=Number(p.used||0)});
+  }else{
+    totalUsed=S.used||0;
+  }
+  $('h2').textContent='Tổng token đã dùng: '+totalUsed.toLocaleString('en-US');
+  $('tb').style.width=Math.min(100,(totalUsed%50000)/500)+'%';
+  $('h3').textContent=j?('Công việc hiện tại: đã dùng '+(j.tokens||j.used||0).toLocaleString('en-US')+' token'):'Hạn mức: Theo từng API bên dưới';
   const n=S.jobs.filter(x=>x.status!=='done').length;$('bg').style.display=n?'inline':'none';$('bg').textContent=n;
-  $('hm').textContent='· '+(j?j.step+'/'+N:'–')+' · '+S.used.toLocaleString('en-US')+'/'+S.quota.toLocaleString('en-US');
+  $('hm').textContent='· '+(j?j.step+'/'+N:'–')+' · '+totalUsed.toLocaleString('en-US')+' token';
+  renderTokenTree();
 }
 async function doStep(i,job){
   const r=job.req;
@@ -441,9 +507,16 @@ async function runJob(job){
   cur=job;lock(true);job.status='running';save();hud();
   while(job.step<N){
     const i=job.step,cost=Math.round(STEPS[i].raw*OPT[i]);
-    if(S.used+cost>S.quota){if(await nextProvider(job))continue;await pause(job,cost);return}
+    const currProvId=S.router[S.prov]?.id||'claude';
+    if(S.providersData&&S.providersData[currProvId]&&S.providersData[currProvId].status==='cooldown'){
+      if(await nextProvider(job))continue;
+      await pause(job,cost);return;
+    }
     await doStep(i,job);
     job.step++;S.used+=cost;job.used+=cost;job.saved+=STEPS[i].raw-cost;job.t=Date.now();
+    if(!S.providersData)S.providersData={};
+    if(!S.providersData[currProvId])S.providersData[currProvId]={name:RP[currProvId]?.[0]||currProvId,used:0,quota:'Theo API',status:'available',statusLabel:'🟢 Available'};
+    S.providersData[currProvId].used=(S.providersData[currProvId].used||0)+cost;
     await bookkeep(i,job,cost);
   }
   job.status='done';save();hud();lock(false);$('inp').value='';notify(job);
@@ -451,10 +524,10 @@ async function runJob(job){
 }
 async function pause(job,cost){
   job.status='paused';save();hud();
-  await say(tm,'Hết token hôm nay, tạm dừng.',true,1800,'Hạn mức còn '+(S.quota-S.used)+' token, bước tiếp theo cần khoảng '+cost+'. Mình tạm dừng để không bị cắt ngang giữa chừng và làm hỏng kết quả.');quiet(tm);
+  await say(tm,'AI hiện tại cần duyệt hoặc hết hạn mức.',true,1800,'Nhà cung cấp AI cần duyệt hoặc tạm dừng, bước tiếp theo cần khoảng '+cost+' token.');quiet(tm);
   fly(tm,sec,0xff6fa5);
-  await say(sec,'Đã lưu sổ tại bước '+job.step+'/'+N+'.',true,1800,'Đã lưu toàn bộ tiến độ: hoàn thành '+job.step+'/'+N+' bước. Ngày mai chủ đầu tư mở “Thư ký” và bấm “Tiếp tục” là team làm tiếp đúng chỗ này.');quiet(sec);
-  msg(inv,'Thư ký','Hôm nay đã hết token. Công việc “'+job.req+'” được lưu ở bước '+job.step+'/'+N+'. Anh/chị có thể tiếp tục ở mục Thư ký.');
+  await say(sec,'Đã lưu sổ tại bước '+job.step+'/'+N+'.',true,1800,'Đã lưu toàn bộ tiến độ: hoàn thành '+job.step+'/'+N+' bước. Bạn có thể mở “Thư ký” và bấm “Tiếp tục” để làm tiếp.');quiet(sec);
+  msg(inv,'Thư ký','Công việc “'+job.req+'” được lưu ở bước '+job.step+'/'+N+'. Anh/chị có thể tiếp tục ở mục Thư ký.');
   lock(false);openSec();
 }
 function resume(job){
@@ -493,7 +566,7 @@ function tab(k){
 }
 function openSec(){if(BE)return openBeSec();
   $('tabs').style.display='none';$('ot').textContent='📒 Sổ thư ký: công việc đã lưu';
-  let h='<p>Token hôm nay: <b>'+S.used.toLocaleString('en-US')+' / '+S.quota.toLocaleString('en-US')+'</b> <button class="g" data-a="newday" style="padding:6px 12px;margin-left:8px">Giả lập sang ngày mai</button></p>';
+  let h='<p>Tổng token đã dùng: <b>'+S.used.toLocaleString('en-US')+'</b> <button class="g" data-a="newday" style="padding:6px 12px;margin-left:8px">Làm mới số liệu</button></p>';
   const js=[...S.jobs].sort((a,b)=>(b.t||0)-(a.t||0));
   if(!js.length)h+='<p style="color:var(--mu)">Chưa có công việc nào được lưu.</p>';
   js.forEach(j=>{
@@ -506,7 +579,7 @@ function openSec(){if(BE)return openBeSec();
 }
 $('body').addEventListener('click',e=>{
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,j=S.jobs.find(x=>String(x.id)===b.dataset.id);
-  if(a==='newday'){S.used=0;S.prov=0;save();hud();log(sec,'Sang ngày mới: hạn mức token đã được làm mới.');openSec()}
+  if(a==='newday'){S.used=0;S.prov=0;S.providersData={};save();hud();log(sec,'Đã làm mới số liệu token.');openSec()}
   else if(a==='resume'&&j)resume(j);
   else if(a==='view'&&j){cur=j;showOut(j)}
   else if(a==='del'&&j){S.jobs=S.jobs.filter(x=>x!==j);save();hud();openSec()}

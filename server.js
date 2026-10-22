@@ -14,12 +14,12 @@ const wr = (f, o) => { const p = path.join(DATA, f); fs.writeFileSync(p + '.tmp'
 
 /* ---------- Danh sách AI (thứ tự và chế độ duyệt nằm trong settings) ---------- */
 const REG = {
-  claude: {name: 'Claude', kind: 'anthropic', model: E.CLAUDE_MODEL || 'claude-sonnet-5-5', ok: () => !!E.ANTHROPIC_API_KEY},
-  openai: {name: 'ChatGPT', kind: 'openai', url: 'https://api.openai.com/v1', key: 'OPENAI_API_KEY', model: E.OPENAI_MODEL || 'gpt-4o-mini', ok: () => !!E.OPENAI_API_KEY},
-  gemini: {name: 'Gemini', kind: 'gemini', model: E.GEMINI_MODEL || 'gemini-2.5-flash', ok: () => !!E.GEMINI_API_KEY},
-  openrouter: {name: 'OpenRouter (free)', kind: 'openai', url: 'https://openrouter.ai/api/v1', key: 'OPENROUTER_API_KEY', model: E.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free', ok: () => !!E.OPENROUTER_API_KEY},
-  groq: {name: 'Groq (free)', kind: 'openai', url: 'https://api.groq.com/openai/v1', key: 'GROQ_API_KEY', model: E.GROQ_MODEL || 'llama-3.3-70b-versatile', ok: () => !!E.GROQ_API_KEY},
-  router9: {name: '9Router (local)', kind: 'openai', url: E.NINEROUTER_URL || 'http://localhost:20128/v1', key: 'NINEROUTER_API_KEY', model: E.NINEROUTER_MODEL || '', ok: () => !!E.NINEROUTER_MODEL}
+  claude: {name: 'Claude', kind: 'anthropic', model: E.CLAUDE_MODEL || 'claude-sonnet-5-5', quota: 'Theo API', ok: () => !!E.ANTHROPIC_API_KEY},
+  openai: {name: 'ChatGPT', kind: 'openai', url: 'https://api.openai.com/v1', key: 'OPENAI_API_KEY', model: E.OPENAI_MODEL || 'gpt-4o-mini', quota: 'Theo API', ok: () => !!E.OPENAI_API_KEY},
+  gemini: {name: 'Gemini', kind: 'gemini', model: E.GEMINI_MODEL || 'gemini-2.5-flash', quota: 'Theo API', ok: () => !!E.GEMINI_API_KEY},
+  openrouter: {name: 'OpenRouter (free)', kind: 'openai', url: 'https://openrouter.ai/api/v1', key: 'OPENROUTER_API_KEY', model: E.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free', quota: 'Theo Model / Free Tier', ok: () => !!E.OPENROUTER_API_KEY},
+  groq: {name: 'Groq (free)', kind: 'openai', url: 'https://api.groq.com/openai/v1', key: 'GROQ_API_KEY', model: E.GROQ_MODEL || 'llama-3.3-70b-versatile', quota: '14,400 RPD (Free Tier)', ok: () => !!E.GROQ_API_KEY},
+  router9: {name: '9Router (local)', kind: 'openai', url: E.NINEROUTER_URL || 'http://localhost:20128/v1', key: 'NINEROUTER_API_KEY', model: E.NINEROUTER_MODEL || '', quota: 'Không giới hạn (Local)', ok: () => !!E.NINEROUTER_MODEL}
 };
 const DEF = {email: E.NOTIFY_EMAIL || '', retryMin: 30, providers: [
   {id: 'claude', mode: 'auto'}, {id: 'openai', mode: 'ask'}, {id: 'gemini', mode: 'ask'},
@@ -30,6 +30,39 @@ const saveST = () => wr('settings.json', ST);
 let JOBS = rd('jobs.json', []);
 const saveJ = () => wr('jobs.json', JOBS);
 const cool = {};
+
+/* ---------- Hệ thống thống kê Token thật theo từng AI ---------- */
+const TOKENS_FILE = 'tokens.json';
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const DEF_TOKENS = {
+  claude: { used: 0, today: 0, lastReset: todayStr() },
+  openai: { used: 0, today: 0, lastReset: todayStr() },
+  gemini: { used: 0, today: 0, lastReset: todayStr() },
+  openrouter: { used: 0, today: 0, lastReset: todayStr() },
+  groq: { used: 0, today: 0, lastReset: todayStr() },
+  router9: { used: 0, today: 0, lastReset: todayStr() }
+};
+let TOKENS = Object.assign({}, DEF_TOKENS, rd(TOKENS_FILE, {}));
+const saveTokens = () => wr(TOKENS_FILE, TOKENS);
+
+function getTokens(id) {
+  if (!TOKENS[id]) TOKENS[id] = { used: 0, today: 0, lastReset: todayStr() };
+  const d = todayStr();
+  if (TOKENS[id].lastReset !== d) {
+    TOKENS[id].today = 0;
+    TOKENS[id].lastReset = d;
+    saveTokens();
+  }
+  return TOKENS[id];
+}
+
+function recordTokens(id, count) {
+  if (!id || !count) return;
+  const t = getTokens(id);
+  t.used = (t.used || 0) + count;
+  t.today = (t.today || 0) + count;
+  saveTokens();
+}
 
 /* ---------- Gọi AI ---------- */
 async function post(url, headers, body) {
@@ -124,6 +157,7 @@ async function run(job) {
       job.out[job.step] = st.html ? o.text.replace(/^[\s\S]*?(<!DOCTYPE|<html)/i, '$1').replace(/```[\s\S]*$/, '').trim() : o.text;
       job.tokens = (job.tokens || 0) + o.tokens;
       job.providers = [...new Set([...(job.providers || []), o.provider])];
+      recordTokens(o.provider, o.tokens);
       ev(job, st.role, `Xong bước ${job.step + 1} bằng ${REG[o.provider].name}: ` + o.text.replace(/\s+/g, ' ').slice(0, 160));
       job.step++;
       ev(job, 'Thư ký', `Đã ghi sổ bước ${job.step}/${STEPS.length} (tổng ${job.tokens} token).`);
@@ -188,7 +222,47 @@ http.createServer(async (req, res) => {
         if (b.modelOverrides && typeof b.modelOverrides === 'object') ST.modelOverrides = Object.fromEntries(Object.entries(b.modelOverrides).filter(([id, model]) => REG[id] && typeof model === 'string' && model.trim()).map(([id, model]) => [id, model.trim().slice(0, 200)]));
         saveST(); setImmediate(tick);
       }
-      return J(res, 200, {settings: ST, providers: Object.fromEntries(Object.entries(REG).map(([k, r]) => [k, {name: r.name, model: getModel(k), ready: r.ok(), cooldownMs: Math.max(0, (cool[k] || 0) - Date.now())}]))});
+      const buildProviders = () => Object.fromEntries(Object.entries(REG).map(([k, r]) => {
+        const tok = getTokens(k);
+        const isCool = (cool[k] || 0) > Date.now();
+        const isReady = r.ok();
+        return [k, {
+          name: r.name,
+          model: getModel(k),
+          ready: isReady,
+          cooldownMs: Math.max(0, (cool[k] || 0) - Date.now()),
+          quota: r.quota || 'Theo API',
+          used: tok.used || 0,
+          today: tok.today || 0,
+          status: !isReady ? 'no_key' : (isCool ? 'cooldown' : 'available'),
+          statusLabel: !isReady ? '⚪ Chưa cài API Key' : (isCool ? '🟡 Hết hạn mức / Cooldown' : '🟢 Available')
+        }];
+      }));
+      return J(res, 200, {settings: ST, tokens: TOKENS, providers: buildProviders()});
+    }
+    if (p === '/api/tokens' && m === 'GET') {
+      const buildProviders = () => Object.fromEntries(Object.entries(REG).map(([k, r]) => {
+        const tok = getTokens(k);
+        const isCool = (cool[k] || 0) > Date.now();
+        const isReady = r.ok();
+        return [k, {
+          name: r.name,
+          model: getModel(k),
+          ready: isReady,
+          cooldownMs: Math.max(0, (cool[k] || 0) - Date.now()),
+          quota: r.quota || 'Theo API',
+          used: tok.used || 0,
+          today: tok.today || 0,
+          status: !isReady ? 'no_key' : (isCool ? 'cooldown' : 'available'),
+          statusLabel: !isReady ? '⚪ Chưa cài API Key' : (isCool ? '🟡 Hết hạn mức / Cooldown' : '🟢 Available')
+        }];
+      }));
+      return J(res, 200, {tokens: TOKENS, providers: buildProviders()});
+    }
+    if (p === '/api/tokens/reset' && m === 'POST') {
+      TOKENS = Object.assign({}, DEF_TOKENS);
+      saveTokens();
+      return J(res, 200, {ok: true, tokens: TOKENS});
     }
     if (p === '/api/ai-catalog' && m === 'GET') {
       const fetchJson = async (url, headers = {}) => {
