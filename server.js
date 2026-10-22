@@ -94,6 +94,8 @@ const ev = (j, role, text) => { (j.events = j.events || []).push({n: j.seq = (j.
 
 /* Router: đi theo thứ tự ưu tiên; hết token/lỗi thì sang AI kế tiếp; AI chưa được duyệt thì dừng chờ duyệt */
 async function route(job, sys, usr, max) {
+  const configured = ST.providers.some(p => REG[p.id]?.ok());
+  if (!configured) throw {no_keys: true};
   for (const p of ST.providers) {
     const r = REG[p.id];
     if (!r || !r.ok() || p.mode === 'deny' || (cool[p.id] || 0) > Date.now()) continue;
@@ -104,7 +106,7 @@ async function route(job, sys, usr, max) {
       o.provider = p.id; return o;
     } catch (e) {
       cool[p.id] = Date.now() + (+E.COOLDOWN_MIN || 60) * 60000;
-      ev(job, 'Tiến độ & Token', `${r.name} hết hạn mức hoặc lỗi (${String(e.message).slice(0, 80)}). Chuyển sang AI kế tiếp.`);
+      ev(job, 'Tiến độ & Token', `${r.name} lỗi hoặc hết hạn mức (${String(e.message).slice(0, 80)}). Chuyển sang AI kế tiếp.`);
     }
   }
   throw {exhausted: true};
@@ -174,6 +176,10 @@ async function run(job) {
       job.status = 'waiting_approval'; job.need = e.need;
       ev(job, 'Tiến độ & Token', `Cần duyệt dùng ${REG[e.need].name} để tiếp tục.`);
       await notify(job, 'approval');
+    } else if (e.no_keys) {
+      job.status = 'paused'; job.retryAt = Date.now() + 60000;
+      ev(job, 'Thư ký', 'Chưa cấu hình API Key nào! Dù dùng model miễn phí (như Groq hay Gemini), nhà cung cấp vẫn bắt buộc phải có API Key để kết nối. Hãy mở Router AI -> 4. Nhập API Key.');
+      await notify(job, 'failed');
     } else if (e.exhausted) {
       job.status = 'paused'; job.retryAt = Date.now() + ST.retryMin * 60000;
       ev(job, 'Thư ký', `Mọi AI đã hết hạn mức. Đã lưu sổ tại bước ${job.step + 1}, tự thử lại sau ${ST.retryMin} phút.`);
@@ -206,6 +212,23 @@ const body = req => new Promise(r => { let b = ''; req.on('data', d => { b += d;
 const view = j => ({id: j.id, key: j.key, req: j.req, status: j.status, step: j.step, total: STEPS.length, tokens: j.tokens || 0, need: j.need, retryAt: j.retryAt, providers: j.providers || [], events: j.events || [], seq: j.seq || 0, err: j.err});
 const MIME = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css'};
 
+const buildProviders = () => Object.fromEntries(Object.entries(REG).map(([k, r]) => {
+  const tok = getTokens(k);
+  const isCool = (cool[k] || 0) > Date.now();
+  const isReady = r.ok();
+  return [k, {
+    name: r.name,
+    model: getModel(k),
+    ready: isReady,
+    cooldownMs: Math.max(0, (cool[k] || 0) - Date.now()),
+    quota: r.quota || 'Theo API',
+    used: tok.used || 0,
+    today: tok.today || 0,
+    status: !isReady ? 'no_key' : (isCool ? 'cooldown' : 'available'),
+    statusLabel: !isReady ? '⚪ Chưa cài API Key' : (isCool ? '🟡 Hết hạn mức / Cooldown' : '🟢 Available')
+  }];
+}));
+
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), p = u.pathname, m = req.method;
   const outKey = /^\/api\/jobs\/\d+\/output$/.test(p) && JOBS.some(j => String(j.id) === p.split('/')[3] && j.key && j.key === u.searchParams.get('k'));
@@ -222,47 +245,44 @@ http.createServer(async (req, res) => {
         if (b.modelOverrides && typeof b.modelOverrides === 'object') ST.modelOverrides = Object.fromEntries(Object.entries(b.modelOverrides).filter(([id, model]) => REG[id] && typeof model === 'string' && model.trim()).map(([id, model]) => [id, model.trim().slice(0, 200)]));
         saveST(); setImmediate(tick);
       }
-      const buildProviders = () => Object.fromEntries(Object.entries(REG).map(([k, r]) => {
-        const tok = getTokens(k);
-        const isCool = (cool[k] || 0) > Date.now();
-        const isReady = r.ok();
-        return [k, {
-          name: r.name,
-          model: getModel(k),
-          ready: isReady,
-          cooldownMs: Math.max(0, (cool[k] || 0) - Date.now()),
-          quota: r.quota || 'Theo API',
-          used: tok.used || 0,
-          today: tok.today || 0,
-          status: !isReady ? 'no_key' : (isCool ? 'cooldown' : 'available'),
-          statusLabel: !isReady ? '⚪ Chưa cài API Key' : (isCool ? '🟡 Hết hạn mức / Cooldown' : '🟢 Available')
-        }];
-      }));
       return J(res, 200, {settings: ST, tokens: TOKENS, providers: buildProviders()});
     }
     if (p === '/api/tokens' && m === 'GET') {
-      const buildProviders = () => Object.fromEntries(Object.entries(REG).map(([k, r]) => {
-        const tok = getTokens(k);
-        const isCool = (cool[k] || 0) > Date.now();
-        const isReady = r.ok();
-        return [k, {
-          name: r.name,
-          model: getModel(k),
-          ready: isReady,
-          cooldownMs: Math.max(0, (cool[k] || 0) - Date.now()),
-          quota: r.quota || 'Theo API',
-          used: tok.used || 0,
-          today: tok.today || 0,
-          status: !isReady ? 'no_key' : (isCool ? 'cooldown' : 'available'),
-          statusLabel: !isReady ? '⚪ Chưa cài API Key' : (isCool ? '🟡 Hết hạn mức / Cooldown' : '🟢 Available')
-        }];
-      }));
       return J(res, 200, {tokens: TOKENS, providers: buildProviders()});
     }
     if (p === '/api/tokens/reset' && m === 'POST') {
       TOKENS = Object.assign({}, DEF_TOKENS);
       saveTokens();
       return J(res, 200, {ok: true, tokens: TOKENS});
+    }
+    if (p === '/api/keys' && m === 'POST') {
+      const b = await body(req);
+      const keyMap = {
+        groq: 'GROQ_API_KEY',
+        gemini: 'GEMINI_API_KEY',
+        openrouter: 'OPENROUTER_API_KEY',
+        openai: 'OPENAI_API_KEY',
+        claude: 'ANTHROPIC_API_KEY'
+      };
+      const saveEnvKey = (kName, val) => {
+        const envPath = path.join(ROOT, '.env');
+        let content = '';
+        try { content = fs.readFileSync(envPath, 'utf8'); } catch {}
+        const regex = new RegExp(`^${kName}=.*$`, 'm');
+        if (regex.test(content)) content = content.replace(regex, `${kName}=${val}`);
+        else content += `\n${kName}=${val}`;
+        fs.writeFileSync(envPath, content);
+      };
+      for (const [k, v] of Object.entries(b)) {
+        const envName = keyMap[k];
+        if (envName && typeof v === 'string' && v.trim()) {
+          const trimmed = v.trim();
+          E[envName] = trimmed;
+          saveEnvKey(envName, trimmed);
+          delete cool[k];
+        }
+      }
+      return J(res, 200, {ok: true, providers: buildProviders()});
     }
     if (p === '/api/ai-catalog' && m === 'GET') {
       const fetchJson = async (url, headers = {}) => {
