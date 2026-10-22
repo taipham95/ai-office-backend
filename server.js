@@ -45,6 +45,27 @@ const DEF_TOKENS = {
 let TOKENS = Object.assign({}, DEF_TOKENS, rd(TOKENS_FILE, {}));
 const saveTokens = () => wr(TOKENS_FILE, TOKENS);
 
+/* Danh mục model phải được lấy từ API của nhà cung cấp. Không có một API công khai
+   nào công bố "model nhiều người dùng nhất" trên mọi nhà cung cấp, nên thứ tự dưới
+   đây là chính sách lựa chọn minh bạch: ưu tiên model chat tổng quát mạnh/phổ biến
+   trước, rồi mới đến model còn lại mà API key đó thực sự được phép dùng. */
+const MODEL_PREFERENCE = {
+  openai: [/^gpt-5(?:\.\d+)?(?:-|$)/i, /^gpt-4\.1(?:-|$)/i, /^gpt-4o(?:-|$)/i, /^gpt-4/i],
+  claude: [/^claude-(?:opus|sonnet)/i, /^claude-haiku/i],
+  gemini: [/^gemini-(?:3|2\.5)-(?:pro|flash)/i, /^gemini-.*flash/i],
+  openrouter: [/(?:gpt-5|claude-(?:opus|sonnet)|gemini-(?:3|2\.5)|llama-.*70b)/i],
+  groq: [/llama-.*70b/i, /(?:qwen|gpt-oss)/i, /llama/i]
+};
+const chooseRecommendedModel = (id, models) => {
+  const ids = [...new Set(models.map(x => x.id).filter(Boolean))];
+  const rank = MODEL_PREFERENCE[id] || [];
+  for (const pattern of rank) {
+    const found = ids.find(model => pattern.test(model));
+    if (found) return found;
+  }
+  return ids[0] || getModel(id);
+};
+
 function getTokens(id) {
   if (!TOKENS[id]) TOKENS[id] = { used: 0, today: 0, lastReset: todayStr() };
   const d = todayStr();
@@ -178,7 +199,7 @@ async function run(job) {
       await notify(job, 'approval');
     } else if (e.no_keys) {
       job.status = 'paused'; job.retryAt = Date.now() + 60000;
-      ev(job, 'Thư ký', 'Chưa cấu hình API Key nào! Dù dùng model miễn phí (như Groq hay Gemini), nhà cung cấp vẫn bắt buộc phải có API Key để kết nối. Hãy mở Router AI -> 4. Nhập API Key.');
+      ev(job, 'Thư ký', 'Chưa cấu hình API Key nào! Dù dùng model miễn phí (như Groq hay Gemini), nhà cung cấp vẫn bắt buộc phải có API Key để kết nối. Hãy mở Router AI -> 3. Nhập API Key.');
       await notify(job, 'failed');
     } else if (e.exhausted) {
       job.status = 'paused'; job.retryAt = Date.now() + ST.retryMin * 60000;
@@ -228,6 +249,33 @@ const buildProviders = () => Object.fromEntries(Object.entries(REG).map(([k, r])
     statusLabel: !isReady ? '⚪ Chưa cài API Key' : (isCool ? '🟡 Hết hạn mức / Cooldown' : '🟢 Available')
   }];
 }));
+
+async function fetchModelCatalog(applyRecommendations = false) {
+  const fetchJson = async (url, headers = {}) => {
+    const r = await fetch(url, {headers, signal: AbortSignal.timeout(20000)});
+    if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 120));
+    return r.json();
+  };
+  const out = {};
+  const add = (id, name, models, source) => {
+    const available = models.filter(Boolean).slice(0, 100);
+    out[id] = {name, source, models: available};
+    if (applyRecommendations && available.length) {
+      ST.modelOverrides[id] = chooseRecommendedModel(id, available);
+    }
+  };
+  const modelItem = (id, billingLabel, source, pricing) => ({id, billingLabel, source, pricing});
+  const tasks = [];
+  if (E.OPENAI_API_KEY) tasks.push(fetchJson('https://api.openai.com/v1/models', {authorization: 'Bearer ' + E.OPENAI_API_KEY}).then(j => add('openai', 'ChatGPT', (j.data || []).filter(x => /^(gpt|o[1-9])-/i.test(x.id)).map(x => modelItem(x.id, 'Trả phí / theo tài khoản', 'OpenAI API')), 'OpenAI API')).catch(() => add('openai', 'ChatGPT', [modelItem(getModel('openai'), 'Không xác định', 'OpenAI API')], 'OpenAI API')));
+  if (E.ANTHROPIC_API_KEY) tasks.push(fetchJson('https://api.anthropic.com/v1/models', {'x-api-key': E.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01'}).then(j => add('claude', 'Claude', (j.data || []).map(x => modelItem(x.id, 'Trả phí / theo tài khoản', 'Anthropic API')), 'Anthropic API')).catch(() => add('claude', 'Claude', [modelItem(getModel('claude'), 'Không xác định', 'Anthropic API')], 'Anthropic API')));
+  if (E.GEMINI_API_KEY) tasks.push(fetchJson('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(E.GEMINI_API_KEY)).then(j => add('gemini', 'Gemini', (j.models || []).filter(x => (x.supportedGenerationMethods || []).includes('generateContent')).map(x => modelItem(x.name.replace(/^models\//, ''), 'Theo quota / gói tài khoản', 'Gemini API')), 'Gemini API')).catch(() => add('gemini', 'Gemini', [modelItem(getModel('gemini'), 'Không xác định', 'Gemini API')], 'Gemini API')));
+  if (E.OPENROUTER_API_KEY) tasks.push(fetchJson('https://openrouter.ai/api/v1/models', {authorization: 'Bearer ' + E.OPENROUTER_API_KEY}).then(j => add('openrouter', 'OpenRouter', (j.data || []).map(x => { const free = Number(x.pricing?.prompt || 0) === 0 && Number(x.pricing?.completion || 0) === 0; return modelItem(x.id, free ? 'Miễn phí' : 'Trả phí', 'OpenRouter API', x.pricing); }), 'OpenRouter API')).catch(() => add('openrouter', 'OpenRouter', [modelItem(getModel('openrouter'), 'Không xác định', 'OpenRouter API')], 'OpenRouter API')));
+  if (E.GROQ_API_KEY) tasks.push(fetchJson('https://api.groq.com/openai/v1/models', {authorization: 'Bearer ' + E.GROQ_API_KEY}).then(j => add('groq', 'Groq', (j.data || []).map(x => modelItem(x.id, 'Theo gói / quota Groq', 'Groq API')), 'Groq API')).catch(() => add('groq', 'Groq', [modelItem(getModel('groq'), 'Không xác định', 'Groq API')], 'Groq API')));
+  add('router9', '9Router (local)', getModel('router9') ? [modelItem(getModel('router9'), 'Local / theo proxy', '9Router')] : [], '9Router');
+  await Promise.all(tasks);
+  if (applyRecommendations) saveST();
+  return {updatedAt: Date.now(), providers: out};
+}
 
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), p = u.pathname, m = req.method;
@@ -282,28 +330,17 @@ http.createServer(async (req, res) => {
           delete cool[k];
         }
       }
-      return J(res, 200, {ok: true, providers: buildProviders()});
+      /* Lưu xong thì kiểm tra key bằng danh mục model và chọn model khuyến nghị
+         ngay lập tức. API key không bao giờ được trả về trình duyệt. */
+      const catalog = await fetchModelCatalog(true);
+      return J(res, 200, {ok: true, providers: buildProviders(), catalog});
     }
     if (p === '/api/ai-catalog' && m === 'GET') {
-      const fetchJson = async (url, headers = {}) => {
-        const r = await fetch(url, {headers, signal: AbortSignal.timeout(20000)});
-        if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 120));
-        return r.json();
-      };
-      const out = {};
-      const add = (id, name, models, source) => {
-        out[id] = {name, source, models: models.filter(Boolean).slice(0, 100)};
-      };
-      const modelItem = (id, billingLabel, source, pricing) => ({id, billingLabel, source, pricing});
-      const tasks = [];
-      if (E.OPENAI_API_KEY) tasks.push(fetchJson('https://api.openai.com/v1/models', {authorization: 'Bearer ' + E.OPENAI_API_KEY}).then(j => add('openai','ChatGPT',(j.data || []).map(x => modelItem(x.id,'Trả phí / theo tài khoản','OpenAI API')), 'OpenAI API')).catch(e => add('openai','ChatGPT',[modelItem(getModel('openai'),'Không xác định','OpenAI API')],'OpenAI API')));
-      if (E.ANTHROPIC_API_KEY) tasks.push(fetchJson('https://api.anthropic.com/v1/models', {'x-api-key': E.ANTHROPIC_API_KEY, 'anthropic-version':'2023-06-01'}).then(j => add('claude','Claude',(j.data || []).map(x => modelItem(x.id,'Trả phí / theo tài khoản','Anthropic API')),'Anthropic API')).catch(e => add('claude','Claude',[modelItem(getModel('claude'),'Không xác định','Anthropic API')],'Anthropic API')));
-      if (E.GEMINI_API_KEY) tasks.push(fetchJson('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(E.GEMINI_API_KEY)).then(j => add('gemini','Gemini',(j.models || []).filter(x => (x.supportedGenerationMethods || []).includes('generateContent')).map(x => modelItem(x.name.replace(/^models\//,''),'Có thể có quota miễn phí / theo tài khoản','Gemini API')),'Gemini API')).catch(e => add('gemini','Gemini',[modelItem(getModel('gemini'),'Không xác định','Gemini API')],'Gemini API')));
-      if (E.OPENROUTER_API_KEY) tasks.push(fetchJson('https://openrouter.ai/api/v1/models', {authorization:'Bearer '+E.OPENROUTER_API_KEY}).then(j => add('openrouter','OpenRouter',(j.data || []).map(x => { const free = Number(x.pricing?.prompt || 0) === 0 && Number(x.pricing?.completion || 0) === 0; return modelItem(x.id, free ? 'Miễn phí' : 'Trả phí','OpenRouter',x.pricing); }),'OpenRouter API')).catch(e => add('openrouter','OpenRouter',[modelItem(getModel('openrouter'),'Không xác định','OpenRouter API')],'OpenRouter API')));
-      if (E.GROQ_API_KEY) tasks.push(fetchJson('https://api.groq.com/openai/v1/models', {authorization:'Bearer '+E.GROQ_API_KEY}).then(j => add('groq','Groq',(j.data || []).map(x => modelItem(x.id,'Theo gói/quota Groq','Groq API')),'Groq API')).catch(e => add('groq','Groq',[modelItem(getModel('groq'),'Không xác định','Groq API')],'Groq API')));
-      add('router9','9Router (local)',getModel('router9')?[modelItem(getModel('router9'),'Local / theo proxy','9Router')]:[],'9Router');
-      await Promise.all(tasks);
-      return J(res, 200, {updatedAt: Date.now(), providers: out});
+      return J(res, 200, await fetchModelCatalog(false));
+    }
+    if (p === '/api/ai-catalog/refresh' && m === 'POST') {
+      const catalog = await fetchModelCatalog(true);
+      return J(res, 200, {...catalog, providersState: buildProviders()});
     }
     if (p === '/api/test-email' && m === 'POST') { await mail('Email thử', 'Email thử từ AI Tech Office. Cấu hình gửi thư hoạt động.'); return J(res, 200, {ok: true}); }
     if (p === '/api/jobs' && m === 'GET') return J(res, 200, JOBS.map(view).reverse());

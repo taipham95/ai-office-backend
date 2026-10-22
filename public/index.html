@@ -777,24 +777,15 @@
           </div>
         </div>
         <div class="router-row" data-router-section="versions">
-          <div class="rr-title">2. Cập nhật AI version mới nhất</div>
+          <div class="rr-title">2. Cập nhật model AI được đề xuất</div>
           <div class="router-detail">
-            <div style="color:var(--mu);margin-bottom:6px">Lấy danh sách model đang được các nhà cung cấp công bố. Không
-              tự đoán tên version.</div><button id="refreshAI" style="padding:7px 10px">↻ Cập nhật AI mới
-              nhất</button><span id="aiRefreshStatus" style="color:var(--mu);margin-left:6px"></span>
+            <div style="color:var(--mu);margin-bottom:6px">Lấy danh sách model trực tiếp từ API key đã nhập, tự chọn model chat được ưu tiên và đồng bộ tên ở mọi nơi.</div><button id="refreshAI" style="padding:7px 10px">↻ Cập nhật &amp; tự chọn model</button><span id="aiRefreshStatus" style="color:var(--mu);margin-left:6px"></span>
             <div id="aiCatalog"></div>
           </div>
         </div>
-        <div class="router-row" data-router-section="pricing">
-          <div class="rr-title">3. Chọn AI miễn phí / trả phí</div>
-          <div class="router-detail">
-            <div style="color:var(--mu);margin-bottom:6px">Chọn ưu tiên model miễn phí hoặc trả phí cho từng AI. Nếu nhà
-              cung cấp không có model miễn phí, hệ thống sẽ báo rõ.</div>
-            <div id="pricingList"></div>
-          </div>
-        </div>
+
         <div class="router-row open" data-router-section="keys">
-          <div class="rr-title">4. Nhập API Key (Bắt buộc để kết nối AI)</div>
+          <div class="rr-title">3. Nhập API Key (Bắt buộc để kết nối AI)</div>
           <div class="router-detail" style="display:block">
             <div style="color:#ffb454;margin-bottom:8px;font-size:12px;line-height:1.4">
               ⚠️ <b>Lưu ý:</b> Dù bạn chọn model <b>Miễn phí (Free)</b>, các nhà cung cấp vẫn bắt buộc phải có API Key để xác thực kết nối.
@@ -806,6 +797,7 @@
                 <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:var(--ac);font-size:11px;text-decoration:none">Lấy key miễn phí (1 phút) ↗</a>
               </div>
               <input id="key_groq" type="password" placeholder="Nhập Groq API Key (gsk_...)" style="width:100%;padding:6px 8px;background:#0c0f20;border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:12px">
+          <span id="model_groq" class="model-name" style="color:var(--mu);font-size:12px;margin-top:2px;"></span>
             </div>
 
             <div style="margin-bottom:8px">
@@ -814,6 +806,7 @@
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--ac);font-size:11px;text-decoration:none">Lấy key miễn phí ↗</a>
               </div>
               <input id="key_gemini" type="password" placeholder="Nhập Gemini API Key (AIzaSy...)" style="width:100%;padding:6px 8px;background:#0c0f20;border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:12px">
+          <span id="model_gemini" class="model-name" style="color:var(--mu);font-size:12px;margin-top:2px;"></span>
             </div>
 
             <div style="margin-bottom:8px">
@@ -822,6 +815,7 @@
                 <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--ac);font-size:11px;text-decoration:none">Lấy key miễn phí ↗</a>
               </div>
               <input id="key_openrouter" type="password" placeholder="Nhập OpenRouter API Key (sk-or-v1-...)" style="width:100%;padding:6px 8px;background:#0c0f20;border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:12px">
+          <span id="model_openrouter" class="model-name" style="color:var(--mu);font-size:12px;margin-top:2px;"></span>
             </div>
 
             <div style="margin-bottom:8px">
@@ -830,6 +824,7 @@
                 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" style="color:var(--ac);font-size:11px;text-decoration:none">Lấy key ↗</a>
               </div>
               <input id="key_openai" type="password" placeholder="Nhập OpenAI API Key (sk-...)" style="width:100%;padding:6px 8px;background:#0c0f20;border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:12px">
+          <span id="model_openai" class="model-name" style="color:var(--mu);font-size:12px;margin-top:2px;"></span>
             </div>
 
             <div style="margin-bottom:8px">
@@ -838,6 +833,7 @@
                 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--ac);font-size:11px;text-decoration:none">Lấy key ↗</a>
               </div>
               <input id="key_claude" type="password" placeholder="Nhập Claude API Key (sk-ant-...)" style="width:100%;padding:6px 8px;background:#0c0f20;border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:12px">
+          <span id="model_claude" class="model-name" style="color:var(--mu);font-size:12px;margin-top:2px;"></span>
             </div>
 
             <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
@@ -978,31 +974,28 @@
         const mv = k => () => { const j = i + k;[S.router[i], S.router[j]] = [S.router[j], S.router[i]]; routerSave() };
         d.append(mk('▲', mv(-1), i === 0), mk('▼', mv(1), i === S.router.length - 1), nm, sl); box.appendChild(d)
       });
-      renderPricing();
       $('rs').textContent = BE ? 'Đã đồng bộ với backend.' : 'Chế độ demo: cài đặt chỉ lưu trong trình duyệt. Chạy backend để dùng AI thật.';
     }
-    function renderPricing() {
-      const box = $('pricingList'); if (!box) return; box.innerHTML = '';
-      S.router.forEach(p => {
-        const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:6px 0';
-        const name = document.createElement('span'); name.style.flex = '1'; name.textContent = RP[p.id]?.[0] || p.id;
-        const sl = document.createElement('select');[['all', 'Tất cả'], ['free', 'Miễn phí'], ['paid', 'Trả phí']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; o.selected = (S.pricing?.[p.id] || 'all') === v; sl.appendChild(o) });
-        sl.onchange = () => { S.pricing = S.pricing || {}; S.pricing[p.id] = sl.value; routerSave() }; row.append(name, sl); box.appendChild(row);
+    function updateModelNames() {
+      Object.entries(S.providersData || {}).forEach(([id, provider]) => {
+        const el = $('model_' + id);
+        if (el) el.textContent = provider.model ? 'Model đang dùng: ' + provider.model : 'Chưa xác định được model';
       });
     }
     async function refreshAICatalog() {
       const st = $('aiRefreshStatus'), box = $('aiCatalog'); if (!BE) { st.textContent = 'Cần backend để cập nhật model thật.'; return }
       st.textContent = 'Đang cập nhật…'; box.innerHTML = '';
       try {
-        const d = await api('/api/ai-catalog');
+        const d = await api('/api/ai-catalog/refresh', {method: 'POST'});
+        if (d.providersState) S.providersData = d.providersState;
         const groups = d.providers || {};
         Object.entries(groups).forEach(([id, g]) => {
           const wrap = document.createElement('div'); wrap.innerHTML = '<b>' + esc(g.name || id) + '</b>';
           (g.models || []).slice(0, 30).forEach(m => { const r = document.createElement('div'); r.className = 'ai-model'; r.innerHTML = '<div class="am-head"><span>' + esc(m.id) + '</span><span>' + esc(m.billingLabel || 'Không rõ') + '</span></div><div class="am-meta">' + esc(m.source || 'provider') + '</div>'; wrap.appendChild(r) });
           box.appendChild(wrap);
         });
-        st.textContent = 'Đã cập nhật ' + new Date().toLocaleTimeString('vi-VN');
-        renderPricing();
+        updateModelNames(); hud();
+        st.textContent = 'Đã cập nhật và tự chọn model lúc ' + new Date().toLocaleTimeString('vi-VN');
       } catch (e) { st.textContent = 'Cập nhật lỗi: ' + String(e.message).slice(0, 100) }
     }
     function setupSidebar() {
@@ -1023,11 +1016,12 @@
           if (st) st.textContent = 'Đang lưu…';
           try {
             const res = await api('/api/keys', {method: 'POST', body: JSON.stringify(keys)});
-            if (st) { st.textContent = '✅ Đã lưu API Key!'; setTimeout(() => { st.textContent = ''; }, 3000); }
             if (res.providers) {
               S.providersData = res.providers;
               hud();
+              updateModelNames();
             }
+            if (st) { st.textContent = '✅ Đã lưu API Key!'; setTimeout(() => { st.textContent = ''; }, 3000); }
             log(sec, 'Đã cập nhật API Key vào hệ thống thành công.');
           } catch (e) {
             if (st) st.textContent = 'Lỗi: ' + e.message;
@@ -1070,7 +1064,7 @@
         if (d.providers) S.providersData = d.providers;
         if (d.settings.email) S.email = d.settings.email;
         else if (S.email) api('/api/settings', { method: 'PUT', body: JSON.stringify({ email: S.email }) }).catch(() => { });
-        save(); mailUi(); routerUi(); hud();
+        save(); mailUi(); routerUi(); updateModelNames(); hud();
         $('go').textContent = 'Giao việc';
         log(sec, 'Đã kết nối backend: công việc chạy nền, email tự gửi.');
         setInterval(syncTokens, 8000);
@@ -1080,7 +1074,7 @@
       if (!BE) return;
       try {
         const d = await api('/api/tokens');
-        if (d.providers) { S.providersData = d.providers; hud(); }
+        if (d.providers) { S.providersData = d.providers; updateModelNames(); hud(); }
       } catch (e) { }
     }
     async function beJob(r) {
@@ -1204,6 +1198,7 @@
         else if (statusText.includes('⚪') || p.status === 'no_key' || p.ready === false) cls = 'no_key';
         html += `<div class="token-node">
 <div class="token-name">${esc(p.name || id)}</div>
+<div class="token-branch">├─ Model: <span class="token-val">${esc(p.model || 'Chưa xác định')}</span></div>
 <div class="token-branch">├─ Đã dùng: <span class="token-val">${used}</span></div>
 <div class="token-branch">├─ Hạn mức: <span class="token-val">${esc(quota)}</span></div>
 <div class="token-branch">└─ Trạng thái: <span class="token-val ${cls}">${esc(statusText)}</span></div>
