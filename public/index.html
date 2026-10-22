@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Tech Office</title>
+<style>
+:root{--bg:#141a33;--pn:rgba(18,22,42,.92);--tx:#e8ebff;--mu:#97a0c8;--ac:#6c8cff;--bd:#2f3760;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+#app{position:relative;height:100%}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#top{position:absolute;top:10px;left:12px;font-weight:700;font-size:15px;pointer-events:none}
+#top small{display:block;color:var(--mu);font-weight:400;font-size:12px}
+#side{position:absolute;top:54px;left:10px;width:min(260px,48vw);display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 140px);overflow:auto}
+.pn{background:var(--pn);border:1px solid var(--bd);border-radius:10px;font-size:12px;line-height:1.5;flex:none}
+.pn>:not(.ph){margin-left:10px;margin-right:10px}.pn>:last-child{margin-bottom:8px}
+.pn.min>:not(.ph){display:none}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 10px;font-weight:600}
+.ph button{padding:1px 9px;font-size:14px;line-height:1.4;background:transparent;border:1px solid var(--bd);color:var(--tx)}
+.mini{color:var(--mu);font-weight:400;display:none}.pn.min .mini{display:inline}
+#em{width:100%;background:#0c0f20;border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:7px 8px;font-size:13px;outline:none}
+#em:focus{border-color:var(--ac)}
+#note{display:none;position:absolute;right:12px;bottom:68px;width:min(340px,calc(100% - 24px));background:var(--pn);border:1px solid #35d07f;border-radius:12px;padding:12px;z-index:8;font-size:13px;line-height:1.45}
+#note a,#note button{display:inline-block;margin:8px 6px 0 0;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer}
+#note a{background:var(--ac);color:#fff}
+#fab{position:absolute;top:50px;left:10px;width:44px;height:44px;border-radius:50%;padding:0;font-size:20px;z-index:8;background:var(--pn);border:1px solid var(--bd)}
+#side{display:none;z-index:7;top:102px}
+#side.open{display:flex;width:min(580px,calc(100% - 20px));max-height:calc(100% - 190px)}
+/* Sidebar: mặc định chỉ hiện 3 dòng rút gọn; click dòng để bung chi tiết */
+#side .pn{overflow:hidden}
+#side .ph{cursor:pointer;user-select:none}
+#side .ph:after{content:'›';font-size:18px;color:var(--mu);transition:transform .18s}
+#side .pn.expanded .ph:after{transform:rotate(90deg)}
+#side .pn.expanded>:not(.ph){display:block}
+#side .pn:not(.expanded)>:not(.ph){display:none}
+#side .pn .ph button{display:none}
+#side .pn.expanded .ph button{display:block}
+#side .router-row{border:1px solid var(--bd);border-radius:8px;padding:8px 10px;margin:6px 10px;background:#10142a;cursor:pointer}
+#side .router-row .rr-title{font-weight:600;display:flex;justify-content:space-between;gap:8px}
+#side .router-row .rr-title:after{content:'›';color:var(--mu);font-size:16px}
+#side .router-row.open .rr-title:after{transform:rotate(90deg)}
+#side .router-detail{display:none;margin-top:7px;color:var(--mu)}
+#side .router-row.open .router-detail{display:block}
+#aiCatalog{max-height:300px;overflow:auto}
+.ai-model{border:1px solid var(--bd);border-radius:8px;padding:8px;margin:6px 0;background:#0c0f20}
+.ai-model .am-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.ai-model .am-meta{color:var(--mu);font-size:11px;margin-top:3px}
+.ai-model select{background:#0c0f20;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px}
+.ph button[data-min]{display:none}
+#hud .bar{height:6px;border-radius:4px;background:#262d52;overflow:hidden;margin:3px 10px 6px}
+#hud .bar i{display:block;height:100%;width:0;background:#35d07f;transition:width .4s}
+#hud .bar.t i{background:#20c5b5}
+#hud select{background:#0c0f20;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:3px;font-size:12px;max-width:100%}
+#log{position:absolute;top:10px;right:10px;width:min(300px,46vw);max-height:38%;overflow:auto;background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:8px;font-size:12px;line-height:1.4}
+#log div{margin-bottom:5px}#log i{color:var(--mu);font-style:normal;margin-right:4px}
+.lb{position:absolute;transform:translate(-50%,-100%);text-align:center;font-size:12px;white-space:nowrap;pointer-events:none}
+.lb .nm{background:var(--pn);border:1px solid var(--bd);border-radius:999px;padding:3px 10px;display:inline-flex;gap:6px;align-items:center;pointer-events:auto;cursor:pointer}
+.dot{width:8px;height:8px;border-radius:50%;background:#6b7194}.dot.on{background:#35d07f;box-shadow:0 0 8px #35d07f}
+.bb{display:none;position:absolute;bottom:28px;left:50%;transform:translateX(-50%);width:max-content;max-width:170px;white-space:normal;background:#fff;color:#161a30;border-radius:10px;padding:6px 9px;font-size:12px;line-height:1.35;text-align:left}
+#bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(10,12,26,.92) 40%)}
+#bar input{flex:1;min-width:0;background:var(--pn);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:12px 14px;font-size:15px;outline:none}
+#bar input:focus{border-color:var(--ac)}
+button{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:0 16px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+button:disabled{opacity:.5;cursor:default}
+button.g{background:transparent;border:1px solid var(--bd);color:var(--tx)}
+.badge{background:#ff5d5d;border-radius:999px;padding:1px 6px;font-size:11px;margin-left:4px}
+#chat{display:none;position:absolute;left:12px;bottom:68px;width:min(390px,calc(100% - 24px));max-height:52%;flex-direction:column;background:var(--pn);border:1px solid var(--bd);border-radius:14px;z-index:4;overflow:hidden}
+#ch{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bd);font-size:13px}
+#ch small{display:block;color:var(--mu);margin-top:2px}
+#ch button{padding:4px 10px}
+#cm{overflow:auto;padding:8px 12px 12px}
+.m{max-width:90%;margin:7px 0;padding:7px 10px;border-radius:10px;font-size:13px;line-height:1.45;background:#262d52}
+.m.me{background:var(--ac);margin-left:auto}.m small{display:block;color:#b9c2ee;font-size:11px;margin-bottom:2px}
+.em{color:var(--mu);font-size:13px;padding:8px 0}
+#out{display:none;position:absolute;inset:0;background:rgba(8,10,22,.84);padding:max(14px,env(safe-area-inset-top,0px)) 14px 14px;z-index:6}
+#box{max-width:980px;height:100%;margin:0 auto;background:var(--pn);border:1px solid var(--bd);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+#hd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--bd)}
+#tabs{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid var(--bd)}
+#tabs button{background:transparent;border:1px solid var(--bd);color:var(--mu);padding:7px 12px;white-space:nowrap}
+#tabs button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+#body{flex:1;overflow:auto;padding:14px;font-size:14px;line-height:1.55}
+#body pre{background:#0c0f20;border:1px solid var(--bd);border-radius:8px;padding:12px;overflow-x:auto;font-size:12.5px}
+#body iframe{width:100%;height:100%;min-height:420px;border:1px solid var(--bd);border-radius:8px;background:#fff}
+#body table{border-collapse:collapse;width:100%}#body td,#body th{border:1px solid var(--bd);padding:7px 9px;text-align:left;font-size:13px}
+.ok{color:#35d07f}.bad{color:#ffb454}
+.job{border:1px solid var(--bd);border-radius:10px;padding:12px;margin:10px 0;background:#10142a}
+.job .bar{height:6px;border-radius:4px;background:#262d52;overflow:hidden;margin:8px 0}.job .bar i{display:block;height:100%;background:#35d07f}
+.job .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.job button{padding:8px 14px}
+.chip{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--bd);margin-left:6px}
+</style>
+</head>
+<body>
+<div id="app">
+<canvas id="c"></canvas>
+<div id="top">AI Tech Office<small>Kéo xoay · cuộn zoom · bấm nhân vật để xem hội thoại</small></div>
+<button id="fab" title="Tiến độ, email, router AI">☰</button>
+<div id="side">
+  <div id="hud" class="pn">
+    <div class="ph" data-expand="hud"><span>📊 Tiến độ &amp; Token <span class="mini" id="hm"></span></span><button data-min="hud">–</button></div>
+    <div id="h1">Tiến độ: chưa có việc</div><div class="bar"><i id="pb"></i></div>
+    <div id="h2">Token hôm nay: 0</div><div class="bar t"><i id="tb"></i></div>
+    <div id="h3" style="color:var(--mu)">Tiết kiệm: 0</div>
+    <div style="margin-top:6px">Hạn mức/ngày: <select id="qs"><option value="4000">4,000 (demo hết token)</option><option value="8000" selected>8,000</option><option value="20000">20,000</option></select></div>
+  </div>
+  <div id="mail" class="pn">
+    <div class="ph" data-expand="mail"><span>✉️ Thông báo email <span class="mini" id="mm"></span></span><button data-min="mail">–</button></div>
+    <div style="color:var(--mu);margin-bottom:6px">Nhập email để nhận thông báo khi công việc hoàn tất.</div>
+    <input id="em" type="email" placeholder="ten@email.com" autocomplete="email">
+    <div style="display:flex;gap:6px;margin-top:6px"><button id="es" style="padding:7px 14px">Lưu</button><button id="ec" class="g" style="padding:7px 14px">Xóa</button></div>
+    <div id="est" style="margin-top:6px;color:var(--mu)"></div>
+  </div>
+  <div id="rt" class="pn">
+    <div class="ph" data-expand="rt"><span>🔀 Router AI khi hết token</span></div>
+    <div class="router-row" data-router-section="order"><div class="rr-title">1. Danh sách &amp; thứ tự AI</div><div class="router-detail"><div style="color:var(--mu);margin-bottom:6px">AI được thử từ trên xuống. Bạn có thể kéo thứ tự bằng nút ▲ ▼ và chọn Tự động / Hỏi tôi / Không dùng.</div><div id="rl"></div></div></div>
+    <div class="router-row" data-router-section="versions"><div class="rr-title">2. Cập nhật AI version mới nhất</div><div class="router-detail"><div style="color:var(--mu);margin-bottom:6px">Lấy danh sách model đang được các nhà cung cấp công bố. Không tự đoán tên version.</div><button id="refreshAI" style="padding:7px 10px">↻ Cập nhật AI mới nhất</button><span id="aiRefreshStatus" style="color:var(--mu);margin-left:6px"></span><div id="aiCatalog"></div></div></div>
+    <div class="router-row" data-router-section="pricing"><div class="rr-title">3. Chọn AI miễn phí / trả phí</div><div class="router-detail"><div style="color:var(--mu);margin-bottom:6px">Chọn ưu tiên model miễn phí hoặc trả phí cho từng AI. Nếu nhà cung cấp không có model miễn phí, hệ thống sẽ báo rõ.</div><div id="pricingList"></div></div></div>
+    <div id="rs" style="margin:8px 10px;color:var(--mu)"></div>
+  </div>
+</div>
+<div id="log"><div><i>--:--</i>Chào chủ đầu tư! Hãy nhập yêu cầu bên dưới.</div></div>
+<div id="chat"><div id="ch"><div><b id="cr"></b><small id="cs"></small></div><button class="g" id="cx">✕</button></div><div id="cm"></div></div>
+<div id="note"></div>
+<div id="bar"><input id="inp" placeholder="Ví dụ: Làm web đặt lịch cắt tóc cho tiệm barber" maxlength="120"><button id="go" style="padding:0 18px">Giao việc</button><button id="sb" class="g">📒 Thư ký<span id="bg" class="badge" style="display:none"></span></button></div>
+<div id="out"><div id="box"><div id="hd"><b id="ot"></b><button id="cl" class="g" style="padding:8px 14px">Đóng</button></div><div id="tabs"></div><div id="body"></div></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+/* ===== 3D ===== */
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x141a33);scene.fog=new THREE.Fog(0x141a33,28,52);
+const cam=new THREE.PerspectiveCamera(50,1,.1,100);
+const ren=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});
+ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.shadowMap.enabled=true;
+scene.add(new THREE.HemisphereLight(0xbfd0ff,0x30334d,.9));
+const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(6,12,8);sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-14,right:14,top:12,bottom:-12});scene.add(sun);
+const mat=c=>new THREE.MeshStandardMaterial({color:c,roughness:.75});
+function box(w,h,d,c,x,y,z,p,sh=true){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);m.castShadow=sh;m.receiveShadow=true;(p||scene).add(m);return m}
+box(26,.2,14,0x2b3358,0,-.1,0,null,false);box(26,5,.3,0x232a4c,0,2.5,-5.6,null,false);box(.3,5,12,0x232a4c,-13,2.5,0,null,false);
+box(21,.02,3.2,0x3a4476,0,.02,-2.2,null,false);
+box(5,2,.1,0xf4f6ff,0,3.1,-5.4,null,false);box(4.4,.08,.02,0x6c8cff,0,3.5,-5.33,null,false);box(3.2,.08,.02,0x35d07f,-.6,3.2,-5.33,null,false);box(3.8,.08,.02,0xffb454,-.3,2.9,-5.33,null,false);
+for(const x of[-12,12]){box(.5,.5,.5,0x5b3a29,x,.25,-4.8);const s=new THREE.Mesh(new THREE.SphereGeometry(.6,12,10),mat(0x2f9e5a));s.position.set(x,1,-4.8);s.castShadow=true;scene.add(s)}
+const pick=[];
+function agent(role,color,hair,x,z,face,desk){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=face;scene.add(g);
+  box(.7,.1,.7,0x3a4166,0,.5,0,g);box(.7,.8,.1,0x3a4166,0,.9,-.35,g);box(.1,.5,.1,0x222844,0,.25,0,g);
+  box(.6,.8,.38,color,0,1.0,0,g);box(.16,.5,.04,0xffffff,0,1.1,.2,g);
+  for(const s of[-1,1])box(.2,.2,.55,0x242a48,s*.15,.62,.3,g);
+  for(const s of[-1,1])box(.18,.5,.18,0x242a48,s*.15,.3,.58,g);
+  const hg=new THREE.Group();hg.position.set(0,1.65,0);g.add(hg);
+  box(.42,.42,.42,0xf2c9a0,0,0,0,hg);box(.46,.14,.46,hair,0,.24,-.02,hg);
+  for(const s of[-1,1])box(.07,.07,.02,0x111111,s*.1,.03,.22,hg);
+  const arms=[-1,1].map(s=>{const a=new THREE.Group();a.position.set(s*.38,1.3,.05);g.add(a);box(.16,.55,.16,color,0,-.27,0,a);a.rotation.x=-1.1;return a});
+  let screen=null;
+  if(desk){
+    box(2,.08,.9,0x8a6f4d,0,.9,1.15,g);for(const sx of[-.9,.9])for(const sz of[.8,1.5])box(.07,.9,.07,0x4a3a28,sx,.45,sz,g);
+    box(.5,.05,.2,0x222844,0,.97,.85,g);box(.1,.3,.08,0x111111,0,1.1,1.25,g);box(.95,.58,.06,0x111111,0,1.5,1.3,g);
+    screen=new THREE.Mesh(new THREE.PlaneGeometry(.85,.48),new THREE.MeshBasicMaterial({color:0x1a2040}));
+    screen.position.set(0,1.5,1.26);screen.rotation.y=Math.PI;g.add(screen);
+  }
+  const lb=document.createElement('div');lb.className='lb';
+  lb.innerHTML='<div class="bb"></div><div class="nm"><span class="dot"></span><b>'+role+'</b></div>';
+  $('app').appendChild(lb);
+  const a={g,hg,arms,screen,color,role,lb,bubble:lb.querySelector('.bb'),dot:lb.querySelector('.dot'),work:false,status:'Đang rảnh',chat:[],pos:new THREE.Vector3(x,2.6,z),seed:Math.random()*6};
+  g.traverse(o=>{if(o.isMesh){o.userData.ag=a;pick.push(o)}});
+  lb.querySelector('.nm').onclick=()=>openChat(a);
+  return a;
+}
+const Z=-2.6;
+const ceo=agent('CEO',0x2a2f4f,0x222222,-9,Z,0,true);
+const pm=agent('PM',0x8a5cf6,0x5a3320,-6,Z,0,true);
+const tm=agent('Tiến độ & Token',0x20c5b5,0x1b1b1b,-3,Z,0,true);
+const fe=agent('Dev FE',0x2f9bff,0x111111,0,Z,0,true);
+const be=agent('Dev BE',0x35b36b,0x3a2a1a,3,Z,0,true);
+const qa=agent('QA/QC',0xff9f43,0x111111,6,Z,0,true);
+const sec=agent('Thư ký',0xff6fa5,0x4a2a1a,9,Z,0,true);
+const inv=agent('Chủ đầu tư',0xe6b422,0x999999,0,3.2,Math.PI,false);
+const all=[ceo,pm,tm,fe,be,qa,sec,inv];
+/* camera */
+let th=0,ph=.95,rad=innerWidth<700?27:18;const tgt=new THREE.Vector3(0,1.3,-.5);
+let drag=null,moved=0;const cv=$('c'),ray=new THREE.Raycaster(),mv=new THREE.Vector2();
+cv.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];moved=0;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag[0],dy=e.clientY-drag[1];moved+=Math.abs(dx)+Math.abs(dy);th=Math.max(-1.2,Math.min(1.2,th-dx*.005));ph=Math.min(1.35,Math.max(.4,ph-dy*.005));drag=[e.clientX,e.clientY]});
+cv.addEventListener('pointerup',e=>{drag=null;if(moved>6)return;
+  mv.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv,cam);
+  const h=ray.intersectObjects(pick,false)[0];if(h)openChat(h.object.userData.ag)});
+cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.min(38,Math.max(8,rad+e.deltaY*.01))},{passive:false});
+function resize(){ren.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+const pk=[];
+function fly(a,b,col=0xffffff){return new Promise(res=>{const m=new THREE.Mesh(new THREE.BoxGeometry(.3,.38,.05),new THREE.MeshBasicMaterial({color:col}));scene.add(m);pk.push({m,a:a.pos.clone().setY(3),b:b.pos.clone().setY(3),t0:performance.now(),d:1000,res})})}
+const v=new THREE.Vector3();
+function frame(now){
+  const t=now/1000;
+  cam.position.set(tgt.x+rad*Math.sin(th)*Math.sin(ph),tgt.y+rad*Math.cos(ph),tgt.z+rad*Math.cos(th)*Math.sin(ph));cam.lookAt(tgt);
+  all.forEach((a,i)=>{
+    if(a.work){a.arms[0].rotation.x=-1.25+Math.sin(t*14+i)*.12;a.arms[1].rotation.x=-1.25+Math.cos(t*13+i)*.12;a.hg.rotation.x=.12;a.hg.rotation.y=Math.sin(t*2+a.seed)*.08;if(a.screen)a.screen.material.color.setHex(Math.sin(t*6+i)>0?a.color:0x1a2040)}
+    else{a.arms[0].rotation.x=a.arms[1].rotation.x=-1.0;a.hg.rotation.x=0;a.hg.rotation.y=Math.sin(t+a.seed)*.12;if(a.screen)a.screen.material.color.setHex(0x1a2040)}
+    v.copy(a.pos).project(cam);a.lb.style.left=((v.x+1)/2*innerWidth)+'px';a.lb.style.top=((1-v.y)/2*innerHeight)+'px';
+  });
+  for(let i=pk.length-1;i>=0;i--){const p=pk[i],k=Math.min(1,(now-p.t0)/p.d);p.m.position.lerpVectors(p.a,p.b,k);p.m.position.y+=Math.sin(k*Math.PI)*1.3;p.m.rotation.y=k*8;if(k>=1){scene.remove(p.m);pk.splice(i,1);p.res()}}
+  ren.render(scene,cam);requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+/* ===== trạng thái lưu trữ (Thư ký) ===== */
+let mem={};
+const today=()=>new Date().toISOString().slice(0,10);
+function load(){try{return JSON.parse(localStorage.getItem('aio_office')||'null')||mem}catch(e){return mem}}
+function save(){mem=S;try{localStorage.setItem('aio_office',JSON.stringify(S))}catch(e){}}
+let S=Object.assign({jobs:[],day:today(),used:0,quota:8000,email:'',min:{hud:0,mail:0},prov:0,tok:'',router:[{id:'claude',mode:'auto'},{id:'openai',mode:'ask'},{id:'gemini',mode:'ask'},{id:'openrouter',mode:'ask'},{id:'groq',mode:'ask'},{id:'router9',mode:'ask'}]},load());
+if(S.day!==today()){S.day=today();S.used=0;S.prov=0}
+S.jobs.forEach(j=>{if(j.status==='running')j.status='paused'});save();
+$('qs').value=String(S.quota);
+$('qs').onchange=()=>{S.quota=+$('qs').value;save();hud()};
+const RP={claude:['Claude','Trả phí'],openai:['ChatGPT','Trả phí'],gemini:['Gemini','Có gói miễn phí'],openrouter:['OpenRouter','Có free + trả phí'],groq:['Groq','Có gói miễn phí'],router9:['9Router (local)','Proxy tự host']};
+let BE=false;
+async function api(p,o={}){const r=await fetch(p,Object.assign({},o,{headers:{'content-type':'application/json',authorization:'Bearer '+(S.tok||'')}}));if(r.status===401){const t=prompt('Nhập ADMIN_TOKEN của backend:');if(t){S.tok=t;save();return api(p,o)}throw new Error('401')}if(!r.ok)throw new Error((await r.text())||String(r.status));return r.json()}
+function routerSave(){save();routerUi();if(BE)api('/api/settings',{method:'PUT',body:JSON.stringify({providers:S.router,pricing:S.pricing||{}})}).catch(()=>{})}
+function routerUi(){
+  const box=$('rl');box.innerHTML='';
+  S.router.forEach((p,i)=>{
+    const d=document.createElement('div');d.style.cssText='display:flex;gap:6px;align-items:center;margin:5px 0';
+    const mk=(t,f,x)=>{const b=document.createElement('button');b.className='g';b.textContent=t;b.style.padding='2px 8px';b.disabled=x;b.onclick=f;return b};
+    const nm=document.createElement('span');nm.style.flex='1';
+    const nb=document.createElement('b');nb.textContent=(i+1)+'. '+(RP[p.id]?.[0]||p.id);const hs=document.createElement('span');hs.style.color='var(--mu)';hs.textContent=' · '+(RP[p.id]?.[1]||'');nm.append(nb,hs);
+    const sl=document.createElement('select');sl.style.cssText='background:#0c0f20;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:3px';
+    [['auto','Tự động'],['ask','Hỏi tôi'],['deny','Không dùng']].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;o.selected=p.mode===v;sl.appendChild(o)});
+    sl.onchange=()=>{p.mode=sl.value;routerSave()};
+    const mv=k=>()=>{const j=i+k;[S.router[i],S.router[j]]=[S.router[j],S.router[i]];routerSave()};
+    d.append(mk('▲',mv(-1),i===0),mk('▼',mv(1),i===S.router.length-1),nm,sl);box.appendChild(d)});
+  renderPricing();
+  $('rs').textContent=BE?'Đã đồng bộ với backend.':'Chế độ demo: cài đặt chỉ lưu trong trình duyệt. Chạy backend để dùng AI thật.';
+}
+function renderPricing(){
+  const box=$('pricingList'); if(!box)return; box.innerHTML='';
+  S.router.forEach(p=>{
+    const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin:6px 0';
+    const name=document.createElement('span');name.style.flex='1';name.textContent=RP[p.id]?.[0]||p.id;
+    const sl=document.createElement('select');[['all','Tất cả'],['free','Miễn phí'],['paid','Trả phí']].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;o.selected=(S.pricing?.[p.id]||'all')===v;sl.appendChild(o)});
+    sl.onchange=()=>{S.pricing=S.pricing||{};S.pricing[p.id]=sl.value;routerSave()};row.append(name,sl);box.appendChild(row);
+  });
+}
+async function refreshAICatalog(){
+  const st=$('aiRefreshStatus'), box=$('aiCatalog'); if(!BE){st.textContent='Cần backend để cập nhật model thật.';return}
+  st.textContent='Đang cập nhật…';box.innerHTML='';
+  try{
+    const d=await api('/api/ai-catalog');
+    const groups=d.providers||{};
+    Object.entries(groups).forEach(([id,g])=>{
+      const wrap=document.createElement('div');wrap.innerHTML='<b>'+esc(g.name||id)+'</b>';
+      (g.models||[]).slice(0,30).forEach(m=>{const r=document.createElement('div');r.className='ai-model';r.innerHTML='<div class="am-head"><span>'+esc(m.id)+'</span><span>'+esc(m.billingLabel||'Không rõ')+'</span></div><div class="am-meta">'+esc(m.source||'provider')+'</div>';wrap.appendChild(r)});
+      box.appendChild(wrap);
+    });
+    st.textContent='Đã cập nhật '+new Date().toLocaleTimeString('vi-VN');
+    renderPricing();
+  }catch(e){st.textContent='Cập nhật lỗi: '+String(e.message).slice(0,100)}
+}
+function setupSidebar(){
+  document.querySelectorAll('#side .ph[data-expand]').forEach(ph=>ph.onclick=e=>{if(e.target.closest('button'))return;ph.parentElement.classList.toggle('expanded')});
+  document.querySelectorAll('#side .router-row[data-router-section]').forEach(row=>row.onclick=e=>{if(e.target.closest('button,select,input'))return;row.classList.toggle('open')});
+  $('refreshAI').onclick=refreshAICatalog;
+}
+function askApprove(txt){return new Promise(res=>{
+  const n=$('note');n.innerHTML='';const t=document.createElement('div');t.innerHTML=txt;n.appendChild(t);
+  [['Đồng ý lần này','once'],['Đồng ý & luôn cho phép','allow'],['Từ chối','deny']].forEach(([l,d])=>{const b=document.createElement('button');b.textContent=l;if(d==='deny')b.className='g';b.onclick=()=>{n.style.display='none';res(d)};n.appendChild(b)});
+  n.style.display='block'})}
+async function nextProvider(job){
+  for(let i=S.prov+1;i<S.router.length;i++){
+    const p=S.router[i],from=RP[S.router[S.prov].id][0],to=RP[p.id][0];
+    if(p.mode==='deny')continue;
+    if(p.mode==='ask'){
+      msg(sec,'Thư ký','Đang chờ chủ đầu tư duyệt dùng '+to+'.');log(tm,'Chờ duyệt dùng '+to);
+      const d=await askApprove('🔀 <b>'+esc(from)+'</b> đã hết token. Duyệt dùng <b>'+esc(to)+'</b> để làm tiếp?');
+      if(d==='deny'){p.mode='deny';routerSave();continue}
+      if(d==='allow'){p.mode='auto';routerSave()}
+    }
+    S.prov=i;S.used=0;save();hud();
+    await say(tm,'Hết token '+from+', chuyển sang '+to+'.',true,2000,'Mình đã chuyển từ '+from+' sang '+to+'. Ngữ cảnh đã nén và sổ thư ký được giữ nguyên nên công việc tiếp tục đúng bước '+(job.step+1)+'.');quiet(tm);
+    return true}
+  return false}
+const RMAP={'CEO':ceo,'PM':pm,'Tiến độ & Token':tm,'Dev FE':fe,'Dev BE':be,'QA/QC':qa,'Thư ký':sec};
+async function detectBE(){try{const h=await fetch('/api/health');if(!h.ok)return;const d=await api('/api/settings');BE=true;S.router=d.settings.providers.map(p=>({id:p.id,mode:p.mode}));S.pricing=d.settings.pricing||{};S.modelOverrides=d.settings.modelOverrides||{};if(d.settings.email)S.email=d.settings.email;else if(S.email)api('/api/settings',{method:'PUT',body:JSON.stringify({email:S.email})}).catch(()=>{});save();mailUi();routerUi();hud();$('go').textContent='Giao việc (backend)';log(sec,'Đã kết nối backend: công việc chạy nền, email tự gửi.')}catch(e){}}
+async function beJob(r){
+  all.forEach(a=>a.chat=[]);msg(inv,'Bạn',r,true);$('inp').value='';
+  const j=await api('/api/jobs',{method:'POST',body:JSON.stringify({req:r})});
+  log(sec,'Đã giao việc cho backend. Công việc vẫn chạy khi bạn đóng trình duyệt.');poll(j.id,0)}
+async function poll(id,seen){
+  try{
+    const j=await api('/api/jobs/'+id);
+    j.events.filter(e=>e.n>seen).forEach(e=>{seen=e.n;const a=RMAP[e.role];if(a)bg(a,e.text.slice(0,90),2600,e.text);else log(sec,e.text)});
+    N=j.total;cur={step:j.step,saved:0,status:j.status==='done'?'done':'running'};hud();
+    if(j.status==='waiting_approval'&&j.need&&!poll.ask){poll.ask=1;askApprove('🔀 Cần duyệt dùng <b>'+esc(RP[j.need][0])+'</b> để làm tiếp công việc này?').then(d=>api('/api/approve',{method:'POST',body:JSON.stringify({jobId:id,providerId:j.need,decision:d})})).catch(()=>{}).then(()=>{poll.ask=0})}
+    if(j.status==='done'){msg(inv,'CEO','Sản phẩm đã sẵn sàng. Backend đã gửi email thông báo nếu bạn đã cấu hình.');showBeOut(j);return}
+    if(j.status==='failed'){log(sec,'Công việc lỗi: '+(j.err||''));return}
+    setTimeout(()=>poll(id,seen),4000)
+  }catch(e){setTimeout(()=>poll(id,seen),8000)}}
+function showBeOut(j){$('tabs').style.display='none';$('ot').textContent='Sản phẩm bàn giao (từ backend)';const f=document.createElement('iframe');f.src='/api/jobs/'+j.id+'/output?k='+j.key;f.setAttribute('sandbox','allow-scripts');$('body').innerHTML='';$('body').appendChild(f);$('out').style.display='block'}
+async function openBeSec(){
+  $('tabs').style.display='none';$('ot').textContent='📒 Sổ thư ký (backend)';$('out').style.display='block';
+  const js=await api('/api/jobs'),b=$('body');b.innerHTML='';
+  if(!js.length)b.textContent='Chưa có công việc nào.';
+  js.forEach(j=>{const d=document.createElement('div');d.className='job';
+    const t=document.createElement('b');t.textContent=j.req;const c=document.createElement('span');c.className='chip';c.textContent=j.status;
+    const bar=document.createElement('div');bar.className='bar';bar.innerHTML='<i style="width:'+(j.step/j.total*100)+'%"></i>';
+    const inf=document.createElement('div');inf.style.cssText='font-size:13px;color:var(--mu)';inf.textContent=j.step+'/'+j.total+' bước · '+j.tokens+' token';
+    const r=document.createElement('div');r.className='row';const x=document.createElement('button');
+    if(j.status==='done'){x.textContent='Xem sản phẩm';x.onclick=()=>showBeOut(j)}else{x.textContent='Tiếp tục';x.onclick=async()=>{await api('/api/jobs/'+j.id+'/resume',{method:'POST'});$('out').style.display='none';poll(j.id,j.seq)}}
+    r.appendChild(x);d.append(t,c,bar,inf,r);b.appendChild(d)})}
+function applyMin(){['hud','mail'].forEach(k=>$(k).classList.toggle('min',!!S.min[k]));document.querySelectorAll('[data-min]').forEach(b=>{const m=!!S.min[b.dataset.min];b.textContent=m?'▢':'–';b.title=m?'Phóng to':'Thu nhỏ'})}
+document.querySelectorAll('[data-min]').forEach(b=>b.onclick=()=>{S.min[b.dataset.min]=S.min[b.dataset.min]?0:1;save();applyMin()});
+function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)}
+function mailUi(){$('em').value=S.email;$('est').style.color='var(--mu)';$('est').textContent=S.email?'Sẽ thông báo tới: '+S.email:'Chưa có email nhận thông báo.';$('mm').textContent=S.email?'· đã bật':'· chưa nhập'}
+$('es').onclick=()=>{const e=$('em').value.trim();if(!validEmail(e)){$('est').style.color='#ffb454';$('est').textContent='Email chưa hợp lệ.';return}S.email=e;save();mailUi();if(BE)api('/api/settings',{method:'PUT',body:JSON.stringify({email:e})}).catch(()=>{});log(sec,'Đã lưu email nhận thông báo: '+e)};
+$('ec').onclick=()=>{S.email='';save();mailUi();if(BE)api('/api/settings',{method:'PUT',body:JSON.stringify({email:''})}).catch(()=>{})};
+$('em').addEventListener('keydown',e=>{if(e.key==='Enter')$('es').click()});
+function notify(job){
+  if(!S.email)return;
+  const subj='[AI Tech Office] Hoàn tất: '+job.req;
+  const body='Xin chào,\n\nCông việc "'+job.req+'" đã hoàn tất.\n- Số bước: '+N+'/'+N+'\n- Token đã dùng: '+job.used+' (tiết kiệm '+job.saved+')\n- QA: 6/6 test case đạt\n\nTiến độ:\n'+job.notes.map(n=>'• Bước '+(n.i+1)+': '+n.text).join('\n')+'\n\nAI Tech Office';
+  const href='mailto:'+S.email+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
+  const n=$('note');n.innerHTML='';
+  const t=document.createElement('div');t.innerHTML='✅ <b>Công việc hoàn tất.</b><br>Thông báo cho: '+esc(S.email)+'<br><span style="color:var(--mu)">Trang này chạy trong trình duyệt, không có máy chủ gửi thư. Bấm nút dưới để mở email đã soạn sẵn rồi nhấn Gửi.</span>';
+  const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener';a.textContent='Mở email để gửi';
+  const c=document.createElement('button');c.className='g';c.textContent='Sao chép nội dung';c.onclick=()=>{try{navigator.clipboard.writeText(subj+'\n\n'+body).then(()=>{c.textContent='Đã sao chép'},()=>{c.textContent='Không sao chép được'})}catch(e){c.textContent='Không sao chép được'}};
+  const x=document.createElement('button');x.className='g';x.textContent='Đóng';x.onclick=()=>{n.style.display='none'};
+  n.append(t,a,c,x);n.style.display='block';
+  msg(sec,'Thư ký','Công việc hoàn tất. Đã soạn sẵn email thông báo tới '+S.email+'.');
+  msg(inv,'Thư ký','Đã soạn email thông báo tới '+S.email+'. Anh/chị bấm “Mở email để gửi” để gửi đi.');
+  log(sec,'Đã soạn email thông báo tới '+S.email);
+}
+/* ===== chat ===== */
+let openA=null;
+function nowT(){return new Date().toTimeString().slice(0,5)}
+function msg(a,from,text,me){a.chat.push({from,text,me:!!me,t:nowT()});if(openA===a)renderChat()}
+function openChat(a){openA=a;$('chat').style.display='flex';renderChat()}
+function renderChat(){
+  const a=openA;$('cr').textContent=a.role;$('cs').textContent='Trạng thái: '+a.status;
+  const m=$('cm');m.innerHTML='';
+  if(!a.chat.length){m.innerHTML='<div class="em">'+(a===inv?'Chưa có cuộc trò chuyện. Hãy nhập yêu cầu ở thanh bên dưới rồi bấm “Giao việc”.':'Mình đang rảnh, chưa nhận việc nào.')+'</div>'}
+  a.chat.forEach(c=>{const d=document.createElement('div');d.className='m'+(c.me?' me':'');const s=document.createElement('small');s.textContent=c.from+' · '+c.t;d.appendChild(s);d.appendChild(document.createTextNode(c.text));m.appendChild(d)});
+  m.scrollTop=1e6;
+}
+$('cx').onclick=()=>{$('chat').style.display='none';openA=null};
+function log(a,t){const d=document.createElement('div');d.innerHTML='<i>'+new Date().toTimeString().slice(0,8)+'</i><b style="color:#'+a.color.toString(16).padStart(6,'0')+'">'+esc(a.role)+'</b>: '+esc(t);$('log').appendChild(d);$('log').scrollTop=1e6}
+async function say(a,t,work=true,ms=2200,d){
+  a.bubble.textContent=t;a.bubble.style.display='block';a.work=work;a.dot.classList.toggle('on',work);a.status=t;
+  if(d!==null)msg(a,a.role,d||t);else if(openA===a)renderChat();
+  log(a,t);await sleep(ms);
+}
+function quiet(a){a.work=false;a.dot.classList.remove('on');a.bubble.style.display='none';a.status='Đang rảnh';if(openA===a)renderChat()}
+function bg(a,t,ms,d){say(a,t,true,ms,d).then(()=>quiet(a))}
+/* ===== quy trình ===== */
+let N=9;
+const STEPS=[
+ {raw:400,who:[ceo],sum:'CEO nhận yêu cầu, chốt phạm vi MVP.'},
+ {raw:1400,who:[pm],sum:'PM viết PRD (4 user story) và chia task.'},
+ {raw:4000,who:[be,fe],sum:'Dev BE dựng API + database, Dev FE dựng giao diện.'},
+ {raw:900,who:[fe],sum:'Dev FE ghép API vào giao diện.'},
+ {raw:1200,who:[qa],sum:'QA chạy 6 test case, phát hiện 1 bug validate form.'},
+ {raw:800,who:[fe],sum:'Dev FE sửa bug validate form.'},
+ {raw:500,who:[qa],sum:'QA chạy lại regression: 6/6 đạt.'},
+ {raw:700,who:[pm],sum:'PM tổng hợp báo cáo bàn giao.'},
+ {raw:300,who:[ceo],sum:'CEO duyệt release và bàn giao.'}
+];
+const OPT=[.95,.7,.65,.7,.7,.6,.6,.7,.8];
+const TIPS=[
+ 'Chỉ chuyển bản tóm tắt yêu cầu, không chuyển lại nguyên văn.',
+ 'Giữ PRD dạng đề mục ngắn; các agent sau nhận bản tóm tắt thay vì toàn văn.',
+ 'Cache system prompt chung; FE chỉ nhận phần API contract cần thiết, BE chỉ nhận phần dữ liệu.',
+ 'Chỉ gửi phần thay đổi của giao diện, không gửi lại toàn bộ mã.',
+ 'QA chỉ nhận build và danh sách tiêu chí chấp nhận, không nhận toàn bộ lịch sử.',
+ 'Gửi riêng đoạn mã lỗi và bước tái hiện cho FE.',
+ 'Chỉ chạy lại test case liên quan, kèm bộ regression cốt lõi.',
+ 'Dùng mô hình nhỏ cho việc tổng hợp, giữ mô hình lớn cho việc lập luận khó.',
+ 'Duyệt dựa trên báo cáo tóm tắt đã được xác nhận.'
+];
+let cur=null,busy=false;
+function lock(b){busy=b;$('go').disabled=$('inp').disabled=b}
+function hud(){
+  const j=cur;$('h1').textContent=j?('Tiến độ: '+j.step+'/'+N+' bước'+(j.status==='paused'?' (tạm dừng)':'')):'Tiến độ: chưa có việc';
+  $('pb').style.width=(j?j.step/N*100:0)+'%';
+  $('h2').textContent='Token hôm nay ('+RP[S.router[S.prov].id][0]+'): '+S.used.toLocaleString('en-US')+' / '+S.quota.toLocaleString('en-US');
+  $('tb').style.width=Math.min(100,S.used/S.quota*100)+'%';
+  $('h3').textContent='Tiết kiệm công việc này: '+(j?j.saved:0).toLocaleString('en-US')+' token';
+  const n=S.jobs.filter(x=>x.status!=='done').length;$('bg').style.display=n?'inline':'none';$('bg').textContent=n;
+  $('hm').textContent='· '+(j?j.step+'/'+N:'–')+' · '+S.used.toLocaleString('en-US')+'/'+S.quota.toLocaleString('en-US');
+}
+async function doStep(i,job){
+  const r=job.req;
+  if(i===0){
+    msg(inv,'Bạn',r,true);
+    await say(inv,'Tôi muốn: '+r,false,1700,null);quiet(inv);
+    await fly(inv,ceo,0xe6b422);
+    await say(ceo,'Đã nhận yêu cầu, xác định phạm vi MVP.',true,2000,'Mình đã nhận yêu cầu: “'+r+'”. Mình chốt phạm vi MVP gồm trang chủ giới thiệu, chức năng chính và form đăng ký có kiểm tra dữ liệu. Mình chuyển PM lập PRD.');
+    msg(inv,'CEO','Em đã nhận yêu cầu của anh/chị. Team sẽ làm bản MVP và báo cáo khi hoàn thành.');quiet(ceo);
+  }else if(i===1){
+    await fly(ceo,pm);
+    await say(pm,'Viết PRD, user story và chia task.',true,2400,'Mình đang viết PRD gồm 4 user story kèm tiêu chí chấp nhận, rồi chia việc: Dev BE làm API, Dev FE làm giao diện, QA chuẩn bị test case.');quiet(pm);
+  }else if(i===2){
+    await Promise.all([fly(pm,be),fly(pm,fe)]);
+    await Promise.all([
+      say(be,'Thiết kế database và dựng REST API.',true,3000,'Mình đang thiết kế bảng items và 6 endpoint REST (đăng nhập, danh sách, tạo, xem, sửa, xóa). Xong mình sẽ gửi API contract cho Dev FE.').then(()=>quiet(be)),
+      say(fe,'Dựng giao diện theo PRD.',true,3000,'Mình đang dựng trang chủ, thẻ tính năng và form đăng ký theo PRD, dùng dữ liệu giả cho tới khi có API.').then(()=>quiet(fe))]);
+  }else if(i===3){
+    await fly(be,fe,0x35b36b);
+    await say(fe,'Nhận API contract, ghép API.',true,2200,'Mình đã nhận API contract từ Dev BE, nối form với POST /api/items và hiển thị thông báo thành công/lỗi.');quiet(fe);
+  }else if(i===4){
+    await fly(fe,qa);
+    await say(qa,'Chạy test, phát hiện 1 bug.',true,2600,'Mình đã chạy 6 test case, 5 đạt. Bug: gửi form khi để trống không báo lỗi (mức trung bình). Mình trả lại Dev FE kèm bước tái hiện.');quiet(qa);
+    msg(inv,'QA/QC','Đã phát hiện 1 bug nhỏ ở form, team đang sửa. Không ảnh hưởng tiến độ.');
+  }else if(i===5){
+    await fly(qa,fe,0xff5d5d);
+    await say(fe,'Sửa bug validate form.',true,2200,'Mình đã thêm kiểm tra họ tên và email trước khi gửi, hiển thị thông báo lỗi rõ ràng. Gửi lại QA kiểm tra.');quiet(fe);
+  }else if(i===6){
+    await fly(fe,qa);
+    await say(qa,'Regression pass 6/6.',true,2000,'Mình chạy lại toàn bộ 6 test case: đạt 6/6. Bug đã được đóng.');quiet(qa);
+  }else if(i===7){
+    await fly(qa,pm);
+    await say(pm,'Tổng hợp báo cáo bàn giao.',true,2000,'Mình tổng hợp PRD, API, giao diện chạy thử và kết quả QA thành gói bàn giao cho CEO.');quiet(pm);
+  }else{
+    await fly(pm,ceo);
+    await say(ceo,'Duyệt release, bàn giao!',true,1800,'Mình đã xem gói bàn giao: đạt tiêu chí chấp nhận, QA đạt 6/6. Mình duyệt release.');quiet(ceo);
+    await fly(ceo,inv,0x35d07f);
+    msg(inv,'CEO','Sản phẩm đã sẵn sàng. Anh/chị xem ở cửa sổ bàn giao nhé.');
+    await say(inv,'Cảm ơn cả team!',false,1400,null);quiet(inv);
+  }
+}
+async function bookkeep(i,job,cost){
+  const st=STEPS[i],sv=st.raw-cost;
+  await Promise.all([fly(st.who[0],tm,0x20c5b5),sleep(500)]);
+  const d='Bước '+(i+1)+'/'+N+' xong. Đã dùng '+cost+' token (gốc '+st.raw+', tiết kiệm '+sv+'). '+TIPS[i]+' Giữ nguyên mã, test case và tiêu chí chấp nhận nên chất lượng đầu ra không đổi.';
+  job.notes.push({i,text:st.sum});save();hud();
+  fly(tm,sec,0xff6fa5);
+  bg(sec,'Ghi sổ bước '+(i+1)+'/'+N,900,'Đã ghi checkpoint bước '+(i+1)+'/'+N+': '+st.sum+' Nếu hết token, mình sẽ giữ nguyên sổ này để làm tiếp.');
+  await say(tm,'Bước '+(i+1)+': tiết kiệm '+Math.round(sv/st.raw*100)+'% token',true,1100,d);quiet(tm);
+}
+async function runJob(job){
+  cur=job;lock(true);job.status='running';save();hud();
+  while(job.step<N){
+    const i=job.step,cost=Math.round(STEPS[i].raw*OPT[i]);
+    if(S.used+cost>S.quota){if(await nextProvider(job))continue;await pause(job,cost);return}
+    await doStep(i,job);
+    job.step++;S.used+=cost;job.used+=cost;job.saved+=STEPS[i].raw-cost;job.t=Date.now();
+    await bookkeep(i,job,cost);
+  }
+  job.status='done';save();hud();lock(false);$('inp').value='';notify(job);
+  showOut(job);
+}
+async function pause(job,cost){
+  job.status='paused';save();hud();
+  await say(tm,'Hết token hôm nay, tạm dừng.',true,1800,'Hạn mức còn '+(S.quota-S.used)+' token, bước tiếp theo cần khoảng '+cost+'. Mình tạm dừng để không bị cắt ngang giữa chừng và làm hỏng kết quả.');quiet(tm);
+  fly(tm,sec,0xff6fa5);
+  await say(sec,'Đã lưu sổ tại bước '+job.step+'/'+N+'.',true,1800,'Đã lưu toàn bộ tiến độ: hoàn thành '+job.step+'/'+N+' bước. Ngày mai chủ đầu tư mở “Thư ký” và bấm “Tiếp tục” là team làm tiếp đúng chỗ này.');quiet(sec);
+  msg(inv,'Thư ký','Hôm nay đã hết token. Công việc “'+job.req+'” được lưu ở bước '+job.step+'/'+N+'. Anh/chị có thể tiếp tục ở mục Thư ký.');
+  lock(false);openSec();
+}
+function resume(job){
+  if(busy)return;
+  $('out').style.display='none';
+  all.forEach(a=>{if(!a.chat.length){}});
+  const owners=new Map();
+  job.notes.forEach(n=>STEPS[n.i].who.forEach(a=>{if(!owners.has(a))owners.set(a,[]);owners.get(a).push(n.text)}));
+  owners.forEach((arr,a)=>{if(!a.chat.length)msg(a,a.role,'Khôi phục từ sổ thư ký: '+arr.join(' '))});
+  if(!inv.chat.length)msg(inv,'Bạn',job.req,true);
+  const left=N-job.step;
+  msg(sec,'Thư ký','Đã đọc sổ: xong '+job.step+'/'+N+' bước, còn '+left+' bước. Tiếp tục từ bước '+(job.step+1)+'.');
+  msg(inv,'Thư ký','Tiếp tục công việc “'+job.req+'” từ bước '+(job.step+1)+'/'+N+'.');
+  log(sec,'Đọc sổ, tiếp tục từ bước '+(job.step+1)+'/'+N);
+  runJob(job);
+}
+/* ===== bàn giao + sổ thư ký ===== */
+let last=null;
+function build(req){
+  const r=esc(req),title=r.length>48?r.slice(0,48)+'…':r;
+  const prd='<h3>PRD · '+title+'</h3><p><b>Mục tiêu:</b> '+r+'</p><h4>User story</h4><ul><li>Là người dùng, tôi muốn xem nhanh giá trị sản phẩm ngay trang chủ.</li><li>Là người dùng, tôi muốn thực hiện chức năng chính: <i>'+r+'</i>.</li><li>Là người dùng, tôi muốn gửi form đăng ký và nhận phản hồi rõ ràng.</li><li>Là chủ sản phẩm, tôi muốn xem danh sách yêu cầu đã gửi.</li></ul><h4>Phân công</h4><ul><li>Dev BE: API, database</li><li>Dev FE: giao diện, validate form</li><li>QA/QC: test case, regression</li></ul>';
+  const api='<h3>API (Dev BE)</h3><pre>POST   /api/auth/login        { email, password }\nGET    /api/items             ?page=1&amp;limit=20\nPOST   /api/items             { name, email, note }\nGET    /api/items/:id\nPUT    /api/items/:id         { name, note }\nDELETE /api/items/:id\n\nTable items(\n  id         uuid PRIMARY KEY,\n  name       text NOT NULL,\n  email      text NOT NULL,\n  note       text,\n  created_at timestamptz DEFAULT now()\n)</pre>';
+  const q='<h3>Báo cáo QA/QC</h3><table><tr><th>#</th><th>Test case</th><th>Kết quả</th></tr><tr><td>1</td><td>Tải trang chủ dưới 2 giây</td><td class="ok">Pass</td></tr><tr><td>2</td><td>Gửi form với dữ liệu hợp lệ</td><td class="ok">Pass</td></tr><tr><td>3</td><td>Gửi form với dữ liệu rỗng</td><td class="bad">Bug → đã sửa → Pass</td></tr><tr><td>4</td><td>Email sai định dạng</td><td class="ok">Pass</td></tr><tr><td>5</td><td>Hiển thị trên mobile 375px</td><td class="ok">Pass</td></tr><tr><td>6</td><td>Regression sau khi sửa bug</td><td class="ok">Pass</td></tr></table><p>Kết luận: <b class="ok">Đạt điều kiện release</b> (1 bug đã đóng).</p>';
+  const page='<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:system-ui,sans-serif;color:#1b1f3b}header{padding:18px 24px;font-weight:700;background:#fff;border-bottom:1px solid #e5e8f5}.hero{padding:48px 24px;text-align:center;background:linear-gradient(135deg,#6c8cff,#8a5cf6);color:#fff}.hero h1{margin:0 0 10px;font-size:28px}.cards{display:flex;gap:12px;flex-wrap:wrap;padding:24px}.cards div{flex:1;min-width:150px;background:#f3f5ff;border-radius:12px;padding:16px}form{max-width:420px;margin:0 auto 30px;padding:0 24px;display:grid;gap:10px}input,button{padding:11px;border-radius:8px;border:1px solid #c9cfee;font-size:15px}button{background:#6c8cff;color:#fff;border:0;font-weight:600}#m{min-height:20px;font-size:14px}</style></head><body><header>'+title+'</header><div class="hero"><h1>'+title+'</h1><p>Sản phẩm MVP do team AI Agent xây dựng</p></div><div class="cards"><div><b>Nhanh</b><br>Dùng ngay, không cần cài đặt</div><div><b>Gọn</b><br>Giao diện tối giản, dễ dùng</div><div><b>An toàn</b><br>Dữ liệu được kiểm tra đầu vào</div></div><form onsubmit="return f(event)"><input id="n" placeholder="Họ tên"><input id="e" placeholder="Email"><button>Đăng ký / Gửi yêu cầu</button><div id="m"></div></form><script>function f(ev){ev.preventDefault();var n=document.getElementById("n").value.trim(),e=document.getElementById("e").value.trim(),m=document.getElementById("m");if(!n||!/^\\S+@\\S+\\.\\S+$/.test(e)){m.style.color="#c0392b";m.textContent="Vui lòng nhập họ tên và email hợp lệ.";return false}m.style.color="#1e8e4e";m.textContent="Cảm ơn "+n+"! Chúng tôi sẽ liên hệ sớm.";return false}<\/script></body></html>';
+  return{'PRD':prd,'API & DB':api,'UI chạy thử':'IFRAME:'+page,'Báo cáo QA':q};
+}
+function showOut(job){
+  last=build(job.req);const tabs=$('tabs');tabs.style.display='flex';tabs.innerHTML='';$('ot').textContent='Sản phẩm bàn giao';
+  Object.keys(last).forEach(k=>{const b=document.createElement('button');b.textContent=k;b.onclick=()=>tab(k);tabs.appendChild(b)});
+  $('out').style.display='block';tab('UI chạy thử');
+}
+function tab(k){
+  [...$('tabs').children].forEach(b=>b.classList.toggle('on',b.textContent===k));
+  const c=last[k],bd=$('body');bd.innerHTML='';
+  if(c.startsWith('IFRAME:')){const f=document.createElement('iframe');f.setAttribute('sandbox','allow-scripts');f.srcdoc=c.slice(7);bd.appendChild(f)}else bd.innerHTML=c;
+}
+function openSec(){if(BE)return openBeSec();
+  $('tabs').style.display='none';$('ot').textContent='📒 Sổ thư ký: công việc đã lưu';
+  let h='<p>Token hôm nay: <b>'+S.used.toLocaleString('en-US')+' / '+S.quota.toLocaleString('en-US')+'</b> <button class="g" data-a="newday" style="padding:6px 12px;margin-left:8px">Giả lập sang ngày mai</button></p>';
+  const js=[...S.jobs].sort((a,b)=>(b.t||0)-(a.t||0));
+  if(!js.length)h+='<p style="color:var(--mu)">Chưa có công việc nào được lưu.</p>';
+  js.forEach(j=>{
+    const st=j.status==='done'?'<span class="chip ok">Hoàn thành</span>':'<span class="chip bad">Đang dở</span>';
+    const ln=j.notes.length?j.notes[j.notes.length-1].text:'Chưa có bước nào xong.';
+    h+='<div class="job"><b>'+esc(j.req)+'</b>'+st+'<div class="bar"><i style="width:'+(j.step/N*100)+'%"></i></div><div style="font-size:13px;color:var(--mu)">'+j.step+'/'+N+' bước · đã dùng '+j.used+' token · tiết kiệm '+j.saved+'<br>Gần nhất: '+esc(ln)+'</div><div class="row">'+
+      (j.status==='done'?'<button data-a="view" data-id="'+j.id+'">Xem sản phẩm</button>':'<button data-a="resume" data-id="'+j.id+'">Tiếp tục công việc</button>')+'<button class="g" data-a="del" data-id="'+j.id+'">Xóa</button></div></div>';
+  });
+  $('body').innerHTML=h;$('out').style.display='block';
+}
+$('body').addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,j=S.jobs.find(x=>String(x.id)===b.dataset.id);
+  if(a==='newday'){S.used=0;S.prov=0;save();hud();log(sec,'Sang ngày mới: hạn mức token đã được làm mới.');openSec()}
+  else if(a==='resume'&&j)resume(j);
+  else if(a==='view'&&j){cur=j;showOut(j)}
+  else if(a==='del'&&j){S.jobs=S.jobs.filter(x=>x!==j);save();hud();openSec()}
+});
+$('cl').onclick=()=>$('out').style.display='none';
+$('sb').onclick=openSec;
+function submit(){
+  const r=$('inp').value.trim();if(!r||busy)return;if(BE){beJob(r);return}
+  all.forEach(a=>a.chat=[]);if(openA)renderChat();
+  const job={id:Date.now(),req:r,step:0,used:0,saved:0,status:'running',notes:[],t:Date.now()};
+  S.jobs.push(job);save();runJob(job);
+}
+$('go').onclick=submit;$('inp').addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
+hud();
+mailUi();applyMin();routerUi();setupSidebar();$('fab').onclick=()=>{const o=$('side').classList.toggle('open');$('fab').textContent=o?'✕':'☰'};detectBE();
+{const n=S.jobs.filter(x=>x.status!=='done').length;if(n)log(sec,'Có '+n+' công việc đang dở trong sổ. Mở “Thư ký” để tiếp tục.')}
+</script>
+</body>
+</html>

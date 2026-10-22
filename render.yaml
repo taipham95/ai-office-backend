@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ai-office
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: COOLDOWN_MIN
+        value: 60
